@@ -1,0 +1,49 @@
+{
+  "version": "1.0.0",
+  "refactoring_types": {
+    "rdc": {
+      "name": "Remove Dead Code",
+      "description": "Identify and remove unused functions, variables, imports, and dead code paths",
+      "skill_path": "sub-skills/rdc/SKILL.md"
+    },
+    "se": {
+      "name": "Simplify Expressions",
+      "description": "Reduce complexity, improve readability, simplify conditional logic",
+      "skill_path": "sub-skills/se/SKILL.md"
+    },
+    "naming": {
+      "name": "Naming Conventions",
+      "description": "Standardize variable, function, and class naming conventions",
+      "skill_path": "sub-skills/naming/SKILL.md"
+    },
+    "clean": {
+      "name": "Clean Code",
+      "description": "Apply SOLID principles, DRY, and clean code best practices",
+      "skill_path": "sub-skills/clean/SKILL.md"
+    },
+    "pattern": {
+      "name": "Project Pattern Conformance",
+      "description": "Ensure files follow project-specific patterns documented in AGENTS.md and supporting docs",
+      "skill_path": "sub-skills/pattern/SKILL.md"
+    }
+  },
+  "documentation": {
+    "root_dir": "docs/refac",
+    "spec_suffix": ".refac.spec.md",
+    "create_if_missing": true
+  },
+  "python": {
+    "venv_dir": ".venv",
+    "python_version": "3.10",
+    "dependencies": [
+      "ast-monitor>=1.0.0",
+      "vulture>=2.0",
+      "radon>=5.0"
+    ]
+  },
+  "analysis": {
+    "max_file_size_mb": 1,
+    "include_extensions": [".vue", ".js", ".ts", ".tsx", ".py"],
+    "exclude_dirs": ["node_modules", ".git", ".venv", "dist", "build"]
+  }
+}

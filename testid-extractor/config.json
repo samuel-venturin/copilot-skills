@@ -1,0 +1,63 @@
+{
+  "version": "1.0.0",
+  "routes": [
+    {
+      "name": "Customer List",
+      "path": "/customer/list",
+      "description": "Browse all customers"
+    },
+    {
+      "name": "Customer Add Corporate",
+      "path": "/customer/add/corporate",
+      "description": "Create new corporate customer"
+    },
+    {
+      "name": "Customer Add Individual",
+      "path": "/customer/add/individual",
+      "description": "Create new individual customer"
+    },
+    {
+      "name": "Customer Edit Corporate",
+      "path": "/customer/1/corporate",
+      "description": "Edit corporate customer (uses ID=1)",
+      "placeholder": "1"
+    },
+    {
+      "name": "Dashboard",
+      "path": "/",
+      "description": "Home/Dashboard page"
+    }
+  ],
+  "browser": {
+    "type": "chromium",
+    "headless": true,
+    "slowmo": 0
+  },
+  "auth": {
+    "env_file": "e2e/.env.e2e",
+    "login_url": "/login",
+    "email_selector": "[data-testid=\"input-email\"]",
+    "password_selector": "[data-testid=\"input-password\"]",
+    "submit_selector": "[data-testid=\"btn-login\"]",
+    "success_indicator": "[data-testid=\"dashboard\"]",
+    "timeout_after_login": 5000
+  },
+  "capture": {
+    "timeout": 15000,
+    "selectors": ["[data-testid]"],
+    "wait_for_element": "[data-testid]",
+    "wait_timeout": 10000
+  },
+  "output": {
+    "file": "docs/testid-map.md",
+    "format": "markdown",
+    "include_tree": true,
+    "include_selectors": true,
+    "group_by": ["page", "component", "pattern"]
+  },
+  "cache": {
+    "enabled": true,
+    "dir": ".testid-cache",
+    "ttl_hours": 24
+  }
+}

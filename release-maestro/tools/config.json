@@ -1,0 +1,9 @@
+{
+  "defaults": {
+    "base": "develop",
+    "bump": "auto"
+  },
+  "release": {
+    "runCoverage": true
+  }
+}

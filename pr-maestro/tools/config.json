@@ -1,0 +1,24 @@
+{
+  "python": {
+    "writeBytecode": false
+  },
+  "defaults": {
+    "base": "develop",
+    "bump": "auto",
+    "createTag": false,
+    "createOrUpdatePr": true,
+    "draft": false,
+    "prBodyStyle": "refined"
+  },
+  "quality": {
+    "requirePassingTests": true,
+    "blockingCommands": [
+      "pnpm coverage"
+    ],
+    "commands": [
+      "pnpm coverage",
+      "pnpm run typecheck",
+      "pnpm run lint"
+    ]
+  }
+}

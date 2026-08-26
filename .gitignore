@@ -1,0 +1,8 @@
+# Runtime artifacts — logs, caches, and local state should not be versioned
+**/__pycache__/
+**/*.pyc
+**/logs/*.log
+**/logs/*.log.err
+**/tools/state.json
+**/.testid-cache/
+**/.venv/

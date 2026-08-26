@@ -1,0 +1,62 @@
+{
+  "base_dir": "C:\\Users\\safranklin.CORP2000\\Documents\\GitHub",
+  "log_dir": "C:\\Users\\safranklin.CORP2000\\.copilot\\skills\\local-stack\\logs",
+  "state_file": "C:\\Users\\safranklin.CORP2000\\.copilot\\skills\\local-stack\\tools\\state.json",
+  "wsl_compose_dir": "/home/safranklin/projects/customers-manager-service/deployments/fullProject",
+  "services": {
+    "infra": {
+      "type": "docker-compose-wsl",
+      "compose_dir": "/home/safranklin/projects/customers-manager-service/deployments/fullProject",
+      "services_filter": "mongo",
+      "health_url": null,
+      "port": 27017,
+      "optional": true,
+      "depends_on": []
+    },
+    "domain": {
+      "type": "dotnet",
+      "project": "customers-domain-service\\src\\CustomersDomainService\\CustomersDomainService.csproj",
+      "launch_json": "customers-domain-service\\.vscode\\launch.json",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Local",
+        "ASPNETCORE_URLS": "http://+:5000"
+      },
+      "health_url": null,
+      "port": 5000,
+      "optional": false,
+      "depends_on": ["infra"]
+    },
+    "tasks": {
+      "type": "dotnet",
+      "project": "tasks-manager-service\\src\\TasksManagerService\\TasksManagerService.csproj",
+      "launch_json": "tasks-manager-service\\.vscode\\launch.json",
+      "health_url": null,
+      "port": 6000,
+      "optional": true,
+      "depends_on": ["infra"]
+    },
+    "bff": {
+      "type": "dotnet",
+      "project": "customers-manager-service\\src\\CustomersManagerService\\CustomersManagerService.csproj",
+      "launch_json": "customers-manager-service\\.vscode\\launch.json",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Local",
+        "ASPNETCORE_URLS": "http://+:7000"
+      },
+      "health_url": null,
+      "port": 7000,
+      "optional": false,
+      "depends_on": ["domain"]
+    },
+    "frontend": {
+      "type": "pnpm",
+      "project": "customers-manager-ui",
+      "command": "pnpm dev",
+      "health_url": null,
+      "port": 3000,
+      "optional": false,
+      "depends_on": ["bff"]
+    }
+  },
+  "start_order": ["infra", "domain", "tasks", "bff", "frontend"]
+}
