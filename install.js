@@ -80,7 +80,9 @@ function printHelp() {
 
 Copies every skill in this repository into ~/.copilot/skills (or a custom
 target directory), backing up any existing skill with the same name first.
-Also offers to install the 'gh' and 'copilot' CLIs if either is missing.
+Also offers to install the core CLIs the skills depend on if any are
+missing: gh, copilot, python, dotnet, pnpm. (wsl is optional and is never
+auto-installed.)
 
 Options:
   --target <dir>        Install destination (default: ~/.copilot/skills, or
@@ -89,9 +91,9 @@ Options:
   --force                Overwrite existing skills in place (no backup)
   --skip-existing        Do not touch skills that already exist at the target
   --dry-run              Print what would happen without changing anything
-  --yes, -y              Auto-confirm installing missing gh/copilot CLIs
+  --yes, -y              Auto-confirm installing missing core CLIs
                          (no interactive prompt)
-  --no-tools             Never offer to install gh/copilot, just report them
+  --no-tools             Never offer to install core CLIs, just report them
   -h, --help             Show this help
 `);
 }
@@ -138,6 +140,10 @@ function commandExists(cmd) {
   }
 }
 
+function pythonExists() {
+  return commandExists("python") || commandExists("python3");
+}
+
 function runCmd(cmd) {
   try {
     execSync(cmd, { stdio: "inherit" });
@@ -159,48 +165,100 @@ function askYesNo(question) {
   });
 }
 
-// Core CLIs the skills depend on. Unlike SKILL_PREREQS (informational-only),
-// these two are offered for automatic installation when missing, with the
-// user's explicit consent (via prompt, or --yes to skip the prompt).
+// Winget package-manager helper: tries winget, then choco, then brew, then
+// the Linux distro package manager (apt-get/dnf), in that order, stopping at
+// the first one that is available on PATH.
+function installViaPackageManager({ winget, choco, brew, apt, dnf }) {
+  if (process.platform === "win32" && winget && commandExists("winget")) {
+    return runCmd(winget);
+  }
+  if (process.platform === "win32" && choco && commandExists("choco")) {
+    return runCmd(choco);
+  }
+  if (brew && commandExists("brew")) {
+    return runCmd(brew);
+  }
+  if (process.platform === "linux" && apt && commandExists("apt-get")) {
+    return runCmd(apt);
+  }
+  if (process.platform === "linux" && dnf && commandExists("dnf")) {
+    return runCmd(dnf);
+  }
+  return false;
+}
+
+// Core tools the skills depend on. Unlike SKILL_PREREQS (informational-only
+// for the *other* per-skill tools), these are offered for automatic
+// installation when missing, with the user's explicit consent (via prompt,
+// or --yes to skip the prompt). WSL is intentionally excluded — it stays
+// fully optional and is never auto-installed or prompted for.
 const CORE_TOOLS = {
   gh: {
     label: "GitHub CLI (gh)",
     manualUrl: "https://github.com/cli/cli#installation",
-    install() {
-      if (process.platform === "win32" && commandExists("winget")) {
-        return runCmd(
+    check: () => commandExists("gh"),
+    install: () =>
+      installViaPackageManager({
+        winget:
           "winget install --id GitHub.cli -e --source winget --scope user " +
-            "--accept-source-agreements --accept-package-agreements"
-        );
-      }
-      if (process.platform === "win32" && commandExists("choco")) {
-        return runCmd("choco install gh -y");
-      }
-      if (commandExists("brew")) {
-        return runCmd("brew install gh");
-      }
-      if (process.platform === "linux" && commandExists("apt-get")) {
-        return runCmd("sudo apt-get update && sudo apt-get install -y gh");
-      }
-      if (process.platform === "linux" && commandExists("dnf")) {
-        return runCmd("sudo dnf install -y gh");
-      }
-      return false;
-    },
+          "--accept-source-agreements --accept-package-agreements",
+        choco: "choco install gh -y",
+        brew: "brew install gh",
+        apt: "sudo apt-get update && sudo apt-get install -y gh",
+        dnf: "sudo dnf install -y gh",
+      }),
   },
   copilot: {
     label: "GitHub Copilot CLI (copilot)",
     manualUrl: "https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli",
-    install() {
-      return runCmd("npm install -g @github/copilot");
-    },
+    check: () => commandExists("copilot"),
+    install: () => runCmd("npm install -g @github/copilot"),
+  },
+  python: {
+    label: "Python (python/python3)",
+    manualUrl: "https://www.python.org/downloads/",
+    check: () => pythonExists(),
+    install: () =>
+      installViaPackageManager({
+        winget:
+          "winget install --id Python.Python.3.12 -e --source winget --scope user " +
+          "--accept-source-agreements --accept-package-agreements",
+        choco: "choco install python -y",
+        brew: "brew install python",
+        apt: "sudo apt-get update && sudo apt-get install -y python3 python3-pip",
+        dnf: "sudo dnf install -y python3 python3-pip",
+      }),
+  },
+  dotnet: {
+    label: ".NET SDK (dotnet)",
+    manualUrl: "https://dotnet.microsoft.com/download",
+    check: () => commandExists("dotnet"),
+    install: () =>
+      installViaPackageManager({
+        winget:
+          "winget install --id Microsoft.DotNet.SDK.8 -e --source winget --scope user " +
+          "--accept-source-agreements --accept-package-agreements",
+        choco: "choco install dotnet-sdk -y",
+        brew: "brew install dotnet",
+        apt: "sudo apt-get update && sudo apt-get install -y dotnet-sdk-8.0",
+        dnf: "sudo dnf install -y dotnet-sdk-8.0",
+      }),
+  },
+  pnpm: {
+    label: "pnpm",
+    manualUrl: "https://pnpm.io/installation",
+    check: () => commandExists("pnpm"),
+    // pnpm is a Node package, so this is reliable cross-platform without
+    // depending on winget/choco/brew/apt being present at all.
+    install: () => runCmd("npm install -g pnpm"),
   },
 };
 
 async function ensureCoreTools(opts) {
-  const missing = Object.keys(CORE_TOOLS).filter((name) => !commandExists(name));
+  const names = Object.keys(CORE_TOOLS);
+  const missing = names.filter((name) => !CORE_TOOLS[name].check());
   if (!missing.length) {
-    console.log("  ✓ gh and copilot CLIs are already installed\n");
+    console.log("  ✓ gh, copilot, python, dotnet and pnpm are already installed\n");
     return;
   }
 
@@ -226,7 +284,7 @@ async function ensureCoreTools(opts) {
   for (const name of missing) {
     console.log(`\n  → Installing ${CORE_TOOLS[name].label}...`);
     const ok = CORE_TOOLS[name].install();
-    if (ok && commandExists(name)) {
+    if (ok && CORE_TOOLS[name].check()) {
       console.log(`  ✓ ${CORE_TOOLS[name].label} installed`);
     } else {
       console.log(`  ✗ Could not install ${CORE_TOOLS[name].label} automatically.`);
@@ -331,7 +389,7 @@ async function main() {
 
   console.log(`✓ Done. Skills are ready at: ${opts.target}\n`);
 
-  console.log("  Checking core CLIs (gh, copilot)...");
+  console.log("  Checking core CLIs (gh, copilot, python, dotnet, pnpm)...");
   await ensureCoreTools(opts);
 
   return 0;

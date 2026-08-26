@@ -44,24 +44,30 @@ If a skill with the same name already exists there, it is backed up automaticall
 (`~/.copilot/skills/_backup_<timestamp>/<skill>`) before being replaced — nothing is
 silently overwritten.
 
-After copying the skills, the installer checks whether the `gh` (GitHub CLI) and
-`copilot` (GitHub Copilot CLI) commands are on `PATH`. If either is missing, it asks
-for permission before installing anything:
+After copying the skills, the installer checks whether the core CLIs the skills
+depend on are on `PATH`: **`gh`, `copilot`, `python`, `dotnet`, `pnpm`**. If any are
+missing, it asks for permission before installing anything:
 
 ```
-Missing tools: GitHub CLI (gh)
+Missing tools: GitHub CLI (gh), Python (python/python3)
 Install them now? [y/N]
 ```
 
-- Answer `y` (or pass `--yes`/`-y` up front) and it installs them for you — `winget`/`choco`/`brew`
-  for `gh` depending on your platform, and `npm install -g @github/copilot` for the Copilot CLI.
+- Answer `y` (or pass `--yes`/`-y` up front) and it installs the missing ones for you:
+  - `gh` → `winget`/`choco` (Windows), `brew` (macOS/Linux), `apt-get`/`dnf` (Linux)
+  - `copilot` → `npm install -g @github/copilot`
+  - `python` → `winget`/`choco`/`brew`/`apt-get`/`dnf` depending on platform
+  - `dotnet` → `winget`/`choco`/`brew`/`apt-get`/`dnf` depending on platform
+  - `pnpm` → `npm install -g pnpm`
 - Answer `n` (or run non-interactively without `--yes`) and it just prints the manual install
   links, without touching your system.
 - Pass `--no-tools` to skip this step entirely.
 
-It also prints an informational checklist of the other prerequisite CLI tools
-(`git`, `python`, `pnpm`, `dotnet`, ...) each installed skill expects on `PATH` — these are
-project-specific runtime tools and are only reported, never auto-installed.
+**`wsl` is intentionally excluded** — it's only used by `local-stack` and stays 100%
+optional; the installer never prompts for it or installs it.
+
+It also prints an informational checklist of the other per-skill prerequisite tools
+(`git`, `node`, `wsl`, ...) — these are only reported, never auto-installed.
 
 Useful flags:
 
@@ -71,8 +77,8 @@ node install.js --only local-stack,tasks   # install just specific skills
 node install.js --target C:\custom\path    # install somewhere other than ~/.copilot/skills
 node install.js --force                    # overwrite in place, no backup
 node install.js --skip-existing            # never touch a skill that's already installed
-node install.js --yes                      # auto-confirm installing missing gh/copilot CLIs
-node install.js --no-tools                 # never offer to install gh/copilot
+node install.js --yes                      # auto-confirm installing missing core CLIs
+node install.js --no-tools                 # never offer to install core CLIs
 node install.js --help
 ```
 
