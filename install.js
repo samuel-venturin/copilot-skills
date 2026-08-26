@@ -58,6 +58,8 @@ function parseArgs(argv) {
     dryRun: false,
     only: null,
     help: false,
+    yes: false,
+    noTools: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -66,6 +68,8 @@ function parseArgs(argv) {
     else if (a === "--skip-existing") opts.skipExisting = true;
     else if (a === "--dry-run") opts.dryRun = true;
     else if (a === "--only") opts.only = argv[++i].split(",").map((s) => s.trim());
+    else if (a === "--yes" || a === "-y") opts.yes = true;
+    else if (a === "--no-tools") opts.noTools = true;
     else if (a === "-h" || a === "--help") opts.help = true;
   }
   return opts;
@@ -76,6 +80,7 @@ function printHelp() {
 
 Copies every skill in this repository into ~/.copilot/skills (or a custom
 target directory), backing up any existing skill with the same name first.
+Also offers to install the 'gh' and 'copilot' CLIs if either is missing.
 
 Options:
   --target <dir>        Install destination (default: ~/.copilot/skills, or
@@ -84,6 +89,9 @@ Options:
   --force                Overwrite existing skills in place (no backup)
   --skip-existing        Do not touch skills that already exist at the target
   --dry-run              Print what would happen without changing anything
+  --yes, -y              Auto-confirm installing missing gh/copilot CLIs
+                         (no interactive prompt)
+  --no-tools             Never offer to install gh/copilot, just report them
   -h, --help             Show this help
 `);
 }
@@ -130,7 +138,105 @@ function commandExists(cmd) {
   }
 }
 
-function main() {
+function runCmd(cmd) {
+  try {
+    execSync(cmd, { stdio: "inherit" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function askYesNo(question) {
+  if (!process.stdin.isTTY) return Promise.resolve(false);
+  const readline = require("readline");
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(/^y(es)?$/i.test(answer.trim()));
+    });
+  });
+}
+
+// Core CLIs the skills depend on. Unlike SKILL_PREREQS (informational-only),
+// these two are offered for automatic installation when missing, with the
+// user's explicit consent (via prompt, or --yes to skip the prompt).
+const CORE_TOOLS = {
+  gh: {
+    label: "GitHub CLI (gh)",
+    manualUrl: "https://github.com/cli/cli#installation",
+    install() {
+      if (process.platform === "win32" && commandExists("winget")) {
+        return runCmd(
+          "winget install --id GitHub.cli -e --source winget --scope user " +
+            "--accept-source-agreements --accept-package-agreements"
+        );
+      }
+      if (process.platform === "win32" && commandExists("choco")) {
+        return runCmd("choco install gh -y");
+      }
+      if (commandExists("brew")) {
+        return runCmd("brew install gh");
+      }
+      if (process.platform === "linux" && commandExists("apt-get")) {
+        return runCmd("sudo apt-get update && sudo apt-get install -y gh");
+      }
+      if (process.platform === "linux" && commandExists("dnf")) {
+        return runCmd("sudo dnf install -y gh");
+      }
+      return false;
+    },
+  },
+  copilot: {
+    label: "GitHub Copilot CLI (copilot)",
+    manualUrl: "https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli",
+    install() {
+      return runCmd("npm install -g @github/copilot");
+    },
+  },
+};
+
+async function ensureCoreTools(opts) {
+  const missing = Object.keys(CORE_TOOLS).filter((name) => !commandExists(name));
+  if (!missing.length) {
+    console.log("  ✓ gh and copilot CLIs are already installed\n");
+    return;
+  }
+
+  if (opts.noTools || opts.dryRun) {
+    const reason = opts.dryRun ? "dry-run" : "--no-tools set";
+    console.log(`  ○ Missing tools (not installing, ${reason}): ${missing.join(", ")}\n`);
+    return;
+  }
+
+  console.log(`  Missing tools: ${missing.map((m) => CORE_TOOLS[m].label).join(", ")}`);
+  let proceed = opts.yes;
+  if (!proceed) {
+    proceed = await askYesNo("  Install them now? [y/N] ");
+  }
+
+  if (!proceed) {
+    console.log("  ○ Skipped. Install manually if needed:");
+    for (const name of missing) console.log(`    - ${CORE_TOOLS[name].label}: ${CORE_TOOLS[name].manualUrl}`);
+    console.log("");
+    return;
+  }
+
+  for (const name of missing) {
+    console.log(`\n  → Installing ${CORE_TOOLS[name].label}...`);
+    const ok = CORE_TOOLS[name].install();
+    if (ok && commandExists(name)) {
+      console.log(`  ✓ ${CORE_TOOLS[name].label} installed`);
+    } else {
+      console.log(`  ✗ Could not install ${CORE_TOOLS[name].label} automatically.`);
+      console.log(`    Install manually: ${CORE_TOOLS[name].manualUrl}`);
+    }
+  }
+  console.log("");
+}
+
+async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.help) {
     printHelp();
@@ -223,8 +329,17 @@ function main() {
     return 1;
   }
 
-  console.log(`✓ Done. Skills are ready at: ${opts.target}`);
+  console.log(`✓ Done. Skills are ready at: ${opts.target}\n`);
+
+  console.log("  Checking core CLIs (gh, copilot)...");
+  await ensureCoreTools(opts);
+
   return 0;
 }
 
-process.exit(main());
+main()
+  .then((code) => process.exit(code))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

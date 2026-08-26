@@ -42,8 +42,26 @@ node install.js
 Both copy every skill into `~/.copilot/skills` (or `%USERPROFILE%\.copilot\skills` on Windows).
 If a skill with the same name already exists there, it is backed up automatically
 (`~/.copilot/skills/_backup_<timestamp>/<skill>`) before being replaced — nothing is
-silently overwritten. The installer also prints a checklist of prerequisite CLI tools
-(`git`, `python`, `pnpm`, `dotnet`, `gh`, ...) each installed skill expects on `PATH`.
+silently overwritten.
+
+After copying the skills, the installer checks whether the `gh` (GitHub CLI) and
+`copilot` (GitHub Copilot CLI) commands are on `PATH`. If either is missing, it asks
+for permission before installing anything:
+
+```
+Missing tools: GitHub CLI (gh)
+Install them now? [y/N]
+```
+
+- Answer `y` (or pass `--yes`/`-y` up front) and it installs them for you — `winget`/`choco`/`brew`
+  for `gh` depending on your platform, and `npm install -g @github/copilot` for the Copilot CLI.
+- Answer `n` (or run non-interactively without `--yes`) and it just prints the manual install
+  links, without touching your system.
+- Pass `--no-tools` to skip this step entirely.
+
+It also prints an informational checklist of the other prerequisite CLI tools
+(`git`, `python`, `pnpm`, `dotnet`, ...) each installed skill expects on `PATH` — these are
+project-specific runtime tools and are only reported, never auto-installed.
 
 Useful flags:
 
@@ -53,6 +71,8 @@ node install.js --only local-stack,tasks   # install just specific skills
 node install.js --target C:\custom\path    # install somewhere other than ~/.copilot/skills
 node install.js --force                    # overwrite in place, no backup
 node install.js --skip-existing            # never touch a skill that's already installed
+node install.js --yes                      # auto-confirm installing missing gh/copilot CLIs
+node install.js --no-tools                 # never offer to install gh/copilot
 node install.js --help
 ```
 
