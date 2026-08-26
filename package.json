@@ -1,12 +1,14 @@
 {
   "name": "copilot-skills-install",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "First-run installer for the copilot-skills collection — copies every skill into ~/.copilot/skills.",
   "private": true,
   "license": "UNLICENSED",
   "bin": {
     "copilot-skills-install": "./install.js",
-    "copilot-skills-uninstall": "./uninstall.js"
+    "copilot-skills-uninstall": "./uninstall.js",
+    "copilot-skills-update": "./update.js",
+    "copilot-skills-schedule-check": "./schedule-check.js"
   },
   "engines": {
     "node": ">=18"
