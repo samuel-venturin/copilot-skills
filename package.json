@@ -5,7 +5,8 @@
   "private": true,
   "license": "UNLICENSED",
   "bin": {
-    "copilot-skills-install": "./install.js"
+    "copilot-skills-install": "./install.js",
+    "copilot-skills-uninstall": "./uninstall.js"
   },
   "engines": {
     "node": ">=18"
