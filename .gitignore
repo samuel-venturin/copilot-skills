@@ -7,3 +7,7 @@
 **/.testid-cache/
 **/.venv/
 resolved_env.json
+
+# Node (installer)
+node_modules/
+package-lock.json

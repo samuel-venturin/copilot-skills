@@ -21,13 +21,48 @@ This repository mirrors the skills normally kept in `~/.copilot/skills/`.
 | `testid-extractor` | Extract `data-testid` attributes from pages and generate a reference map for E2E tests. |
 | `update-error-catalog` | Sync error codes from a backend error catalog to frontend i18n localization files. |
 
-## Usage
+## Install (first time on a new machine)
 
-Clone or copy the contents of this repo into your local `~/.copilot/skills/` directory (or your agent's equivalent skills folder) to make these skills available.
+Requires [Node.js](https://nodejs.org) ≥ 18 (no other dependencies are installed).
+
+**Option A — no clone needed:**
+
+```powershell
+npx github:samuel-venturin/copilot-skills
+```
+
+**Option B — clone first, then run the installer:**
 
 ```powershell
 git clone https://github.com/samuel-venturin/copilot-skills.git
-Copy-Item .\copilot-skills\* -Destination "$env:USERPROFILE\.copilot\skills" -Recurse -Force
+cd copilot-skills
+node install.js
+```
+
+Both copy every skill into `~/.copilot/skills` (or `%USERPROFILE%\.copilot\skills` on Windows).
+If a skill with the same name already exists there, it is backed up automatically
+(`~/.copilot/skills/_backup_<timestamp>/<skill>`) before being replaced — nothing is
+silently overwritten. The installer also prints a checklist of prerequisite CLI tools
+(`git`, `python`, `pnpm`, `dotnet`, `gh`, ...) each installed skill expects on `PATH`.
+
+Useful flags:
+
+```powershell
+node install.js --dry-run                  # preview without changing anything
+node install.js --only local-stack,tasks   # install just specific skills
+node install.js --target C:\custom\path    # install somewhere other than ~/.copilot/skills
+node install.js --force                    # overwrite in place, no backup
+node install.js --skip-existing            # never touch a skill that's already installed
+node install.js --help
+```
+
+## Manual copy (alternative)
+
+If you prefer not to run any script:
+
+```powershell
+git clone https://github.com/samuel-venturin/copilot-skills.git
+Copy-Item .\copilot-skills\* -Destination "$env:USERPROFILE\.copilot\skills" -Recurse -Force -Exclude install.js,package.json,README.md,.gitignore
 ```
 
 ## Notes
