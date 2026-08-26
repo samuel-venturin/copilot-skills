@@ -82,6 +82,27 @@ node install.js --no-tools                 # never offer to install core CLIs
 node install.js --help
 ```
 
+## Uninstall
+
+Clone the repository first (uninstall isn't exposed via `npx` — it needs local flags):
+
+```powershell
+git clone https://github.com/samuel-venturin/copilot-skills.git
+cd copilot-skills
+node uninstall.js                          # removes this repo's skills from ~/.copilot/skills
+node uninstall.js --dry-run                # preview what would be removed
+node uninstall.js --only local-stack,tasks # remove just specific skills
+node uninstall.js --target C:\custom\path  # uninstall from a custom target
+node uninstall.js --yes                    # skip the confirmation prompt
+node uninstall.js --all                    # also remove skills at the target that aren't in this repo
+node uninstall.js --keep-backups           # don't delete this repo's _backup_* folders
+node uninstall.js --help
+```
+
+By default, `uninstall.js` only removes skill folders that exist in this repository —
+any custom skill you added yourself, unrelated to this collection, is left untouched
+unless you pass `--all`.
+
 ## Manual copy (alternative)
 
 If you prefer not to run any script:
@@ -96,3 +117,34 @@ Copy-Item .\copilot-skills\* -Destination "$env:USERPROFILE\.copilot\skills" -Re
 - Some skills (`local-stack`, `pr-maestro`, `release-maestro`, `refactor`, `testid-extractor`) include `tools/config.json` files with local paths and project-specific settings. Review and adjust these before reuse in a different environment.
 - Runtime artifacts (logs, `__pycache__`, cached state) are excluded via `.gitignore` and are not versioned.
 - This repository is personal and independent of any employer's GitHub organization.
+
+## Contributing
+
+`main` and `develop` are protected — direct pushes are disabled on both, all changes
+go through a pull request.
+
+- **`develop`** is the default/integration branch. New skills, fixes, and improvements
+  are proposed here first, via a pull request from a feature branch.
+- **`main`** always reflects the latest stable, released state. It's only updated via a
+  pull request from `develop` (i.e. `develop` → `main`), once changes on `develop` are
+  considered stable.
+
+Workflow to propose a change:
+
+```powershell
+git clone https://github.com/samuel-venturin/copilot-skills.git
+cd copilot-skills
+git checkout develop
+git checkout -b feature/my-improvement
+
+# ...make your changes...
+
+git add <files>
+git commit -m "[FEAT]: describe the change"
+git push -u origin feature/my-improvement
+gh pr create --base develop --title "[FEAT]: describe the change" --body "..."
+```
+
+Then open the pull request against `develop` on GitHub (or via `gh pr create` as above)
+and wait for it to be reviewed and merged. Once `develop` is stable, a separate pull
+request from `develop` into `main` promotes it to the stable branch.
