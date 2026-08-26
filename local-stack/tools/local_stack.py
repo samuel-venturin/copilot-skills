@@ -28,13 +28,127 @@ from datetime import datetime
 SKILL_DIR = Path(__file__).parent
 CONFIG_FILE = SKILL_DIR / "config.json"
 STATE_FILE = SKILL_DIR / "state.json"
+# Cache for auto-discovered, machine-specific paths (base_dir / wsl_home).
+# Never versioned (see .gitignore) — regenerated per machine on first run.
+RESOLVED_CACHE_FILE = SKILL_DIR / "resolved_env.json"
 
 with open(CONFIG_FILE) as f:
     CFG = json.load(f)
 
-BASE_DIR = Path(CFG["base_dir"])
-LOG_DIR = Path(CFG["log_dir"])
+LOG_DIR = SKILL_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _load_resolved_cache() -> dict:
+    if RESOLVED_CACHE_FILE.exists():
+        try:
+            return json.loads(RESOLVED_CACHE_FILE.read_text())
+        except Exception:
+            pass
+    return {}
+
+
+def _save_resolved_cache(cache: dict):
+    RESOLVED_CACHE_FILE.write_text(json.dumps(cache, indent=2))
+
+
+def _project_root_names() -> list:
+    """Top-level project directory names referenced by dotnet/pnpm services in config.json."""
+    names = []
+    for svc in CFG.get("services", {}).values():
+        if svc.get("type") in ("dotnet", "pnpm"):
+            project = svc.get("project", "")
+            root = re.split(r"[\\/]", project)[0]
+            if root and root not in names:
+                names.append(root)
+    return names
+
+
+def discover_base_dir() -> Path:
+    """
+    Resolve the local folder that contains all sibling project repos.
+
+    Resolution order:
+      1. LOCAL_STACK_BASE_DIR env var
+      2. Explicit "base_dir" in config.json (manual override)
+      3. Cached value in resolved_env.json (from a previous successful discovery)
+      4. Auto-scan of "base_dir_search_roots" from config.json, picking the first
+         root that contains every project folder referenced by the configured services
+    """
+    env_override = os.environ.get("LOCAL_STACK_BASE_DIR")
+    if env_override and Path(env_override).is_dir():
+        return Path(env_override)
+
+    cfg_override = CFG.get("base_dir")
+    if cfg_override and Path(cfg_override).is_dir():
+        return Path(cfg_override)
+
+    cache = _load_resolved_cache()
+    cached = cache.get("base_dir")
+    required = _project_root_names()
+    if cached and all((Path(cached) / name).is_dir() for name in required):
+        return Path(cached)
+
+    for root in CFG.get("base_dir_search_roots", []):
+        candidate = Path(os.path.expanduser(root))
+        if candidate.is_dir() and all((candidate / name).is_dir() for name in required):
+            cache["base_dir"] = str(candidate)
+            _save_resolved_cache(cache)
+            return candidate
+
+    print(c(RED, "  ✗ Could not auto-discover the projects base directory."))
+    print(c(YELLOW, f"    Looked for folders {required} under: {CFG.get('base_dir_search_roots', [])}"))
+    print(c(YELLOW, "    Fix: set the LOCAL_STACK_BASE_DIR env var, or the \"base_dir\" field in config.json."))
+    sys.exit(1)
+
+
+def discover_wsl_home() -> str:
+    """
+    Resolve the WSL user's home directory (used to build compose_dir paths).
+
+    Resolution order:
+      1. LOCAL_STACK_WSL_HOME env var
+      2. Explicit "wsl_home" in config.json (manual override)
+      3. Cached value in resolved_env.json
+      4. `wsl -- bash -c "echo $HOME"`
+    """
+    env_override = os.environ.get("LOCAL_STACK_WSL_HOME")
+    if env_override:
+        return env_override.rstrip("/")
+
+    cfg_override = CFG.get("wsl_home")
+    if cfg_override:
+        return cfg_override.rstrip("/")
+
+    cache = _load_resolved_cache()
+    if cache.get("wsl_home"):
+        return cache["wsl_home"].rstrip("/")
+
+    try:
+        r = subprocess.run(["wsl", "--", "bash", "-c", "echo $HOME"],
+                            capture_output=True, text=True, timeout=15)
+        home = r.stdout.strip()
+        if home:
+            cache["wsl_home"] = home
+            _save_resolved_cache(cache)
+            return home.rstrip("/")
+    except Exception:
+        pass
+
+    print(c(YELLOW, "  [warn] Could not resolve WSL home via `wsl -- echo $HOME`; "
+                     "falling back to /root. Set LOCAL_STACK_WSL_HOME to override."))
+    return "/root"
+
+
+BASE_DIR = discover_base_dir()
+
+# Resolve compose_dir for docker-compose-wsl services from wsl_home + *_relative config,
+# unless an absolute compose_dir was already provided explicitly (back-compat).
+for _svc in CFG.get("services", {}).values():
+    if _svc.get("type") == "docker-compose-wsl" and not _svc.get("compose_dir"):
+        _relative = _svc.get("compose_dir_relative") or CFG.get("wsl_compose_dir_relative", "")
+        if _relative:
+            _svc["compose_dir"] = f"{discover_wsl_home()}/{_relative.lstrip('/')}"
 
 # ── Colors ─────────────────────────────────────────────────────────────────────
 GREEN  = "\033[92m"

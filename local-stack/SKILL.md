@@ -42,7 +42,7 @@ This skill is invoked when the user types `/local-stack` followed by an optional
 **Step 2 - Build and run the command via powershell:**
 
 ```
-SCRIPT = C:\Users\safranklin.CORP2000\.copilot\skills\local-stack\tools\local_stack.py
+SCRIPT = <this skill's directory>\tools\local_stack.py   # e.g. ~/.copilot/skills/local-stack/tools/local_stack.py
 
 python <SCRIPT> <command> [service] [--lines N]
 ```
@@ -64,12 +64,30 @@ python <SCRIPT> <command> [service] [--lines N]
 
 Start order: `infra -> domain -> tasks -> bff -> frontend`
 
+## Path auto-discovery
+
+`base_dir` (folder containing all sibling project repos) and `wsl_home` (WSL user home,
+used to build `compose_dir` for the `infra` service) are **auto-discovered at runtime** —
+no machine-specific absolute paths are hardcoded in `config.json`.
+
+Resolution order for both:
+1. Env var override (`LOCAL_STACK_BASE_DIR`, `LOCAL_STACK_WSL_HOME`)
+2. Explicit value in `config.json` (`base_dir`, `wsl_home`)
+3. Cached value in `tools/resolved_env.json` (created on first successful discovery, gitignored)
+4. Auto-scan: `base_dir` is found by checking `base_dir_search_roots` in `config.json`
+   (e.g. `~/Documents/GitHub`, `~/GitHub`, `~/repos`, ...) for a folder containing all
+   project directories referenced by the configured services. `wsl_home` is resolved via
+   `wsl -- bash -c "echo $HOME"`.
+
+If auto-discovery fails (e.g. repos live outside all search roots), set `LOCAL_STACK_BASE_DIR`
+env var or add the correct path directly to `config.json`.
+
 ## Notes
 
 - `tasks` is optional - may fail locally due to missing config, that is expected
 - `infra` is optional - domain and bff connect to remote MongoDB via Azure App Configuration; start infra only if you need a local MongoDB (e.g. for the `tasks` service or local seeding)
 - Env vars are loaded from each service's `.vscode/launch.json` automatically; `config.json "env"` acts as an explicit override with highest priority
 - `frontend` requires `public/config.json` with `BASE_URL: http://localhost:7000`
-- Logs: `C:\Users\safranklin.CORP2000\.copilot\skills\local-stack\logs\<service>.log`
-- State/PIDs: `C:\Users\safranklin.CORP2000\.copilot\skills\local-stack\tools\state.json`
+- Logs: `<this skill's directory>\logs\<service>.log`
+- State/PIDs: `<this skill's directory>\tools\state.json`
 - **Prerequisite**: internet/VPN access to `app-configuration-zeusdev-001.azconfig.io` for domain and bff

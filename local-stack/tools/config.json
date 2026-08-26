@@ -1,12 +1,21 @@
 {
-  "base_dir": "C:\\Users\\safranklin.CORP2000\\Documents\\GitHub",
-  "log_dir": "C:\\Users\\safranklin.CORP2000\\.copilot\\skills\\local-stack\\logs",
-  "state_file": "C:\\Users\\safranklin.CORP2000\\.copilot\\skills\\local-stack\\tools\\state.json",
-  "wsl_compose_dir": "/home/safranklin/projects/customers-manager-service/deployments/fullProject",
+  "_comment": "base_dir/wsl_home are auto-discovered at runtime (see discover_base_dir/discover_wsl_home in local_stack.py) and cached in resolved_env.json. Set an explicit value here, or the env vars LOCAL_STACK_BASE_DIR / LOCAL_STACK_WSL_HOME, to override discovery.",
+  "base_dir": null,
+  "base_dir_search_roots": [
+    "~/Documents/GitHub",
+    "~/GitHub",
+    "~/source/repos",
+    "~/repos",
+    "~/dev",
+    "~/Projects",
+    "~/projects"
+  ],
+  "wsl_home": null,
+  "wsl_compose_dir_relative": "projects/customers-manager-service/deployments/fullProject",
   "services": {
     "infra": {
       "type": "docker-compose-wsl",
-      "compose_dir": "/home/safranklin/projects/customers-manager-service/deployments/fullProject",
+      "compose_dir_relative": "projects/customers-manager-service/deployments/fullProject",
       "services_filter": "mongo",
       "health_url": null,
       "port": 27017,
