@@ -23,6 +23,34 @@ const os = require("os");
 const { execSync } = require("child_process");
 
 const REPO_ROOT = __dirname;
+const REPO_SLUG = "samuel-venturin/copilot-skills";
+const MANIFEST_FILE = ".copilot-skills-manifest.json";
+
+function readLocalVersion() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8")).version;
+  } catch {
+    return null;
+  }
+}
+
+function writeManifest(target, allSkillNames) {
+  const manifestPath = path.join(target, MANIFEST_FILE);
+  // Only list skills that are actually present at the target right now,
+  // so removed/renamed skills don't linger in the manifest.
+  const present = allSkillNames.filter((s) => fs.existsSync(path.join(target, s, "SKILL.md")));
+  const manifest = {
+    version: readLocalVersion(),
+    installedAt: new Date().toISOString(),
+    repo: REPO_SLUG,
+    skills: present.sort(),
+  };
+  try {
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+  } catch {
+    // Non-fatal — the manifest is only used by update.js/schedule-check.js for version reporting.
+  }
+}
 
 const IGNORE_NAMES = new Set([
   ".git",
@@ -388,6 +416,8 @@ async function main() {
   }
 
   console.log(`✓ Done. Skills are ready at: ${opts.target}\n`);
+
+  if (!opts.dryRun) writeManifest(opts.target, skills);
 
   console.log("  Checking core CLIs (gh, copilot, python, dotnet, pnpm)...");
   await ensureCoreTools(opts);

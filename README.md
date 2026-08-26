@@ -103,6 +103,46 @@ By default, `uninstall.js` only removes skill folders that exist in this reposit
 any custom skill you added yourself, unrelated to this collection, is left untouched
 unless you pass `--all`.
 
+## Updating
+
+Every install writes a small manifest (`.copilot-skills-manifest.json`) inside the
+target directory recording the installed version and skill list. `update.js` uses it
+to figure out what changed.
+
+```powershell
+git clone https://github.com/samuel-venturin/copilot-skills.git
+cd copilot-skills
+node update.js                 # check for updates, show what's new, and apply if you confirm
+node update.js --check-only    # just report whether an update is available
+node update.js --dry-run       # show what would be updated without changing anything
+node update.js --yes           # skip the confirmation prompt
+node update.js --target C:\custom\path
+node update.js --help
+```
+
+`update.js` only touches the skills you already have installed (per the manifest) —
+it won't add skills you never installed, and it prints the relevant `CHANGELOG.md`
+entries (every version newer than the one you had) straight to the terminal before
+applying anything.
+
+## Daily update check (optional)
+
+`schedule-check.js` registers a background task that runs once a day and tells you
+if a new version is available — it only notifies, it never installs anything on its
+own. Uses Task Scheduler on Windows, launchd on macOS, and cron on Linux.
+
+```powershell
+node schedule-check.js                  # schedule a daily check at 09:00
+node schedule-check.js --time 18:30     # pick a different time
+node schedule-check.js --target C:\custom\path
+node schedule-check.js --remove         # unregister the daily check
+node schedule-check.js --help
+```
+
+When an update is available you'll see a desktop notification (where supported) and a
+line in `~/.copilot/skills-update-check.log`. Run `node update.js` yourself whenever
+you're ready to apply it — this never updates anything without you running it.
+
 ## Manual copy (alternative)
 
 If you prefer not to run any script:
