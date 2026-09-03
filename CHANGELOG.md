@@ -4,6 +4,23 @@ All notable changes to this repository are documented here. Versions follow
 `package.json`'s `version` field. `update.js` reads this file to print a
 summary of what's new whenever you update.
 
+## [1.2.1]
+
+- Fix: `update`, `uninstall`, and `schedule-check` now work via a plain
+  `npx github:samuel-venturin/copilot-skills <subcommand>` invocation, with
+  no clone required. Previously only `install` was reachable this way
+  because `npx github:owner/repo` always resolves to the bin matching
+  `package.json`'s `name` (`install.js`), so any extra arguments were just
+  passed through to the installer and ignored. `install.js` now inspects its
+  first positional argument and, if it matches `update`, `uninstall`, or
+  `schedule-check`, dispatches to the matching sibling script instead
+  (forwarding all remaining flags unchanged). An explicit `install` keyword
+  is accepted as a no-op alias for the default install flow. Cloning the
+  repo and running the scripts directly still works exactly as before.
+- Add the missing `qa-test-tutorial` entry to `install.js`'s informational
+  prerequisite-tools table (it depends on `playwright-cli`'s own tools,
+  `node`/`npx`), which was left out when the skill was added in 1.2.0.
+
 ## [1.2.0]
 
 - Add new skill `qa-test-tutorial`: writes a manual QA test tutorial for an
