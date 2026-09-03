@@ -95,6 +95,12 @@ def parse_args(config: dict) -> argparse.Namespace:
         default=default_quality_gate,
         help="Execute quality-gate commands before PR generation/update (default from config).",
     )
+    parser.add_argument(
+        "--how-to-test-file",
+        default=None,
+        help="Path to a Markdown file (typically produced by the qa-test-tutorial skill, Phase A) "
+        "whose content is embedded as the 'Como testar manualmente' section of the PR body.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -258,6 +264,11 @@ def main() -> int:
     branch = current_branch()
     diff = diff_data(args.base)
     title = args.title or default_title(branch, diff.commits)
+    how_to_test_content = None
+    if args.how_to_test_file:
+        how_to_test_path = Path(args.how_to_test_file)
+        if how_to_test_path.exists():
+            how_to_test_content = how_to_test_path.read_text(encoding="utf-8")
     body = build_template_body(
         args.base,
         branch,
@@ -265,6 +276,7 @@ def main() -> int:
         diff.commits,
         diff.files,
         quality_report=quality_report,
+        how_to_test=how_to_test_content,
     )
 
     if args.create_tag:
@@ -339,6 +351,8 @@ def main() -> int:
                 quality_report_file = quality_tmp.name
 
             apply_cmd.extend(["--quality-report-file", quality_report_file])
+            if args.how_to_test_file:
+                apply_cmd.extend(["--how-to-test-file", args.how_to_test_file])
             if args.dry_run:
                 apply_cmd.append("--dry-run")
 
