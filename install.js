@@ -11,6 +11,17 @@
  * Usage:
  *   node install.js [--target <dir>] [--force] [--skip-existing] [--dry-run] [--only <name,...>]
  *
+ * This is also the script `npx github:<owner>/copilot-skills` resolves to
+ * by default (its bin name matches package.json's "name"). Because of that,
+ * it doubles as a single dispatch entrypoint for the other scripts in this
+ * repo, so every command works through the same `npx` invocation without
+ * needing `--package=`:
+ *   npx github:<owner>/copilot-skills                 → install (default)
+ *   npx github:<owner>/copilot-skills install [...]    → install (explicit)
+ *   npx github:<owner>/copilot-skills update [...]     → runs update.js
+ *   npx github:<owner>/copilot-skills uninstall [...]  → runs uninstall.js
+ *   npx github:<owner>/copilot-skills schedule-check [...] → runs schedule-check.js
+ *
  * Zero external dependencies — only Node.js builtins are used, so this runs
  * fine via `npx github:<owner>/copilot-skills` without an install step.
  */
@@ -20,11 +31,36 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { execSync } = require("child_process");
+const { execSync, spawnSync } = require("child_process");
 
 const REPO_ROOT = __dirname;
 const REPO_SLUG = "samuel-venturin/copilot-skills";
 const MANIFEST_FILE = ".copilot-skills-manifest.json";
+
+// Subcommand → sibling script this dispatches to. Lets every script in this
+// repo run through the single bin `npx github:<owner>/copilot-skills`
+// resolves to by default, e.g. `npx github:<owner>/copilot-skills update`.
+const SUBCOMMANDS = {
+  update: "update.js",
+  uninstall: "uninstall.js",
+  "schedule-check": "schedule-check.js",
+};
+
+// Inspects the first positional argument for a known subcommand and, if
+// found, re-execs the matching sibling script (forwarding the rest of the
+// args) instead of continuing into the installer below. Returns the
+// remaining argv unchanged when no dispatch happened (including when the
+// explicit "install" keyword is used — it's just stripped so it's a no-op).
+function dispatchSubcommand(argv) {
+  const [first, ...rest] = argv;
+  if (first && SUBCOMMANDS[first]) {
+    const scriptPath = path.join(REPO_ROOT, SUBCOMMANDS[first]);
+    const result = spawnSync(process.execPath, [scriptPath, ...rest], { stdio: "inherit" });
+    process.exit(result.status === null ? 1 : result.status);
+  }
+  if (first === "install") return rest;
+  return argv;
+}
 
 function readLocalVersion() {
   try {
@@ -71,6 +107,7 @@ const SKILL_PREREQS = {
   "local-stack": ["python", "git", "wsl (Windows only)", "dotnet", "pnpm"],
   "playwright-cli": ["node", "npx"],
   "pr-maestro": ["python", "git", "gh"],
+  "qa-test-tutorial": ["node", "npx"],
   refactor: ["python"],
   "release-maestro": ["python", "git", "gh"],
   tasks: [],
@@ -111,6 +148,15 @@ target directory), backing up any existing skill with the same name first.
 Also offers to install the core CLIs the skills depend on if any are
 missing: gh, copilot, python, dotnet, pnpm. (wsl is optional and is never
 auto-installed.)
+
+This is also the entrypoint \`npx github:${REPO_SLUG}\` resolves to by
+default, so it doubles as a dispatcher for the other scripts — pass one of
+these as the first argument instead of an install flag:
+  update            → runs update.js (updates already-installed skills)
+  uninstall         → runs uninstall.js
+  schedule-check    → runs schedule-check.js
+  install           → runs the installer explicitly (same as no subcommand)
+Example: npx github:${REPO_SLUG} update --yes
 
 Options:
   --target <dir>        Install destination (default: ~/.copilot/skills, or
@@ -323,7 +369,8 @@ async function ensureCoreTools(opts) {
 }
 
 async function main() {
-  const opts = parseArgs(process.argv.slice(2));
+  const rawArgv = dispatchSubcommand(process.argv.slice(2));
+  const opts = parseArgs(rawArgv);
   if (opts.help) {
     printHelp();
     return 0;

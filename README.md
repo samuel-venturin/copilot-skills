@@ -85,7 +85,13 @@ node install.js --help
 
 ## Uninstall
 
-Clone the repository first (uninstall isn't exposed via `npx` — it needs local flags):
+**Option A — no clone needed:**
+
+```powershell
+npx github:samuel-venturin/copilot-skills uninstall
+```
+
+**Option B — clone first, then run the script directly:**
 
 ```powershell
 git clone https://github.com/samuel-venturin/copilot-skills.git
@@ -100,6 +106,9 @@ node uninstall.js --keep-backups           # don't delete this repo's _backup_* 
 node uninstall.js --help
 ```
 
+All the same flags work with the `npx` form too, e.g.
+`npx github:samuel-venturin/copilot-skills uninstall --dry-run --only local-stack,tasks`.
+
 By default, `uninstall.js` only removes skill folders that exist in this repository —
 any custom skill you added yourself, unrelated to this collection, is left untouched
 unless you pass `--all`.
@@ -109,6 +118,15 @@ unless you pass `--all`.
 Every install writes a small manifest (`.copilot-skills-manifest.json`) inside the
 target directory recording the installed version and skill list. `update.js` uses it
 to figure out what changed.
+
+**Option A — no clone needed:**
+
+```powershell
+npx github:samuel-venturin/copilot-skills update
+npx github:samuel-venturin/copilot-skills update --check-only
+```
+
+**Option B — clone first, then run the script directly:**
 
 ```powershell
 git clone https://github.com/samuel-venturin/copilot-skills.git
@@ -131,6 +149,14 @@ applying anything.
 `schedule-check.js` registers a background task that runs once a day and tells you
 if a new version is available — it only notifies, it never installs anything on its
 own. Uses Task Scheduler on Windows, launchd on macOS, and cron on Linux.
+
+**Option A — no clone needed:**
+
+```powershell
+npx github:samuel-venturin/copilot-skills schedule-check
+```
+
+**Option B — clone first, then run the script directly:**
 
 ```powershell
 node schedule-check.js                  # schedule a daily check at 09:00
