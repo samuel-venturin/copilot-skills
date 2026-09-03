@@ -14,7 +14,8 @@ This repository mirrors the skills normally kept in `~/.copilot/skills/`.
 | `interpret` | Interpret a Jira spec and produce planning artifacts — PRD, PROMPT, QUALITY. |
 | `local-stack` | Manage a local development stack (start/stop/restart/reset/logs) across infra, domain, tasks, bff, and frontend services. |
 | `playwright-cli` | Automate browser interactions for web testing, form filling, screenshots, and data extraction. |
-| `pr-maestro` | Single-entry PR automation using Python tools for tagging, PR creation, and template application. |
+| `pr-maestro` | Single-entry PR automation using Python tools for tagging, PR creation, and template application. Supports an optional `--how-to-test-file` to inject a manual-test tutorial into the PR body. |
+| `qa-test-tutorial` | Writes a manual QA test tutorial for an already-implemented ticket and, by default, immediately executes it end-to-end with `playwright-cli` against the real dev environment, saving screenshot evidence straight to `Documents/<TICKET>-evidencias/`. |
 | `refactor` | Single-entry refactoring automation with Python tools for code analysis, spec generation, and guided refactoring (dead code removal, simplification, naming, clean code, pattern conformance). |
 | `release-maestro` | Single-entry release automation for tag recommendation, tag creation, release notes generation, and release create/update. |
 | `tasks` | Manage a task queue — list, next, inspect, set dependencies, and transition status. |

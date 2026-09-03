@@ -4,6 +4,21 @@ All notable changes to this repository are documented here. Versions follow
 `package.json`'s `version` field. `update.js` reads this file to print a
 summary of what's new whenever you update.
 
+## [1.2.0]
+
+- Add new skill `qa-test-tutorial`: writes a manual QA test tutorial for an
+  already-implemented ticket and, by default, immediately executes it
+  end-to-end with `playwright-cli` against the real dev environment.
+  Evidence screenshots are always saved directly under the user's
+  `Documents\<TICKET>-evidencias\` folder (never left only in a hard-to-find
+  temporary/session location), and reruns keep prior investigation
+  screenshots in a clearly named `historico-*` subfolder instead of mixing
+  them with current evidence.
+- `pr-maestro` now supports an optional `--how-to-test-file` argument (on
+  both PR creation and template re-apply) that injects a "🧭 Como testar
+  manualmente" section into the generated PR body, right before the
+  checklist — intended to be filled from a `qa-test-tutorial` run.
+
 ## [1.1.0]
 
 - Add `update.js`: updates all installed skills to the latest version and
