@@ -24,6 +24,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--base", default="develop")
     parser.add_argument("--title", default=None)
     parser.add_argument("--quality-report-file", default=None)
+    parser.add_argument(
+        "--how-to-test-file",
+        default=None,
+        help="Path to a Markdown file whose content is embedded as the 'Como testar manualmente' section.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--output-body-file", default=None)
     return parser.parse_args()
@@ -51,6 +56,12 @@ def main() -> int:
         if quality_path.exists():
             quality_report = json.loads(quality_path.read_text(encoding="utf-8"))
 
+    how_to_test_content = None
+    if args.how_to_test_file:
+        how_to_test_path = Path(args.how_to_test_file)
+        if how_to_test_path.exists():
+            how_to_test_content = how_to_test_path.read_text(encoding="utf-8")
+
     body = build_template_body(
         args.base,
         branch,
@@ -58,6 +69,7 @@ def main() -> int:
         diff.commits,
         diff.files,
         quality_report=quality_report,
+        how_to_test=how_to_test_content,
     )
     pr_number = resolve_pr_number(args.base, args.pr_number)
 

@@ -62,7 +62,7 @@ def infer_ticket(branch: str, commits: Iterable[str] | None = None) -> str:
 
     if commits:
         for subject in commits:
-            commit_match = re.search(r"\[([A-Z]+-\d+)\]", subject)
+            commit_match = re.search(r"\[([A-Z]+-?\d+)\]", subject)
             if commit_match:
                 return commit_match.group(1)
 
@@ -79,7 +79,7 @@ def infer_type_from_commits(commits: list[str]) -> str:
         "CHORE": 0,
     }
     for item in commits:
-        match = re.search(r"\[[A-Z]+-\d+\]\[([A-Z]+)\]", item)
+        match = re.search(r"\[[A-Z]+-?\d+\]\[([A-Z]+)\]", item)
         if match and match.group(1) in weights:
             weights[match.group(1)] += 1
 
@@ -124,8 +124,9 @@ class DiffData:
 
 
 def diff_data(base: str) -> DiffData:
-    commits_output = run(["git", "log", "--oneline", "--no-merges", f"origin/{base}..HEAD"]) if _has_origin_base(base) else run(["git", "log", "--oneline", "--no-merges", f"{base}..HEAD"])
-    files_output = run(["git", "diff", "--name-only", f"{base}...HEAD"])
+    has_origin_base = _has_origin_base(base)
+    commits_output = run(["git", "log", "--oneline", "--no-merges", f"origin/{base}..HEAD"]) if has_origin_base else run(["git", "log", "--oneline", "--no-merges", f"{base}..HEAD"])
+    files_output = run(["git", "diff", "--name-only", f"origin/{base}...HEAD"]) if has_origin_base else run(["git", "diff", "--name-only", f"{base}...HEAD"])
 
     commits = [line.strip() for line in commits_output.splitlines() if line.strip()]
     files = [line.strip() for line in files_output.splitlines() if line.strip()]
@@ -352,6 +353,17 @@ def build_risk_notes(files: list[str]) -> list[str]:
     return notes[:3]
 
 
+def build_how_to_test_lines(how_to_test: str | None) -> list[str]:
+    if how_to_test and how_to_test.strip():
+        return [how_to_test.strip()]
+
+    return [
+        "_Nenhum tutorial de teste manual foi fornecido nesta execução. Gere um com a skill "
+        "`qa-test-tutorial` (Fase A) e rode novamente com `--how-to-test-file <arquivo>` para "
+        "incluir esta seção automaticamente._",
+    ]
+
+
 def build_template_body(
     base: str,
     branch: str,
@@ -359,6 +371,7 @@ def build_template_body(
     commits: list[str],
     files: list[str],
     quality_report: dict | None = None,
+    how_to_test: str | None = None,
 ) -> str:
     ticket = infer_ticket(branch, commits)
     main_files = filter_main_files(files)
@@ -372,6 +385,7 @@ def build_template_body(
     risk_notes = build_risk_notes(files)
     tests_lines, coverage_lines, attention_notes = build_tests_and_coverage_sections(quality_report, commits)
     risk_notes.extend(attention_notes)
+    how_to_test_lines = build_how_to_test_lines(how_to_test)
 
     commits_lines = [
         f"{idx + 1}. `{line.split()[0]}` — `{' '.join(line.split()[1:])}`"
@@ -432,6 +446,11 @@ def build_template_body(
         "",
         "---",
         "",
+        "## 🧭 Como testar manualmente",
+        *how_to_test_lines,
+        "",
+        "---",
+        "",
         "## ⚠️ Notes / Risks",
         *[f"- {note}" for note in risk_notes],
         "",
@@ -467,4 +486,10 @@ def open_pr_for_branch(base: str, head: str) -> dict | None:
 
 
 def print_json(payload: dict) -> None:
-    sys.stdout.write(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+    try:
+        sys.stdout.write(text)
+    except UnicodeEncodeError:
+        # Windows consoles often use a legacy codepage that can't encode
+        # emoji/unicode punctuation used in PR bodies; fall back gracefully.
+        sys.stdout.write(text.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8", errors="replace"))
