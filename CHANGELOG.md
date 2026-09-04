@@ -4,6 +4,16 @@ All notable changes to this repository are documented here. Versions follow
 `package.json`'s `version` field. `update.js` reads this file to print a
 summary of what's new whenever you update.
 
+## [1.2.3]
+
+- Fix: `pr-maestro` had hardcoded Portuguese-language strings in generated output — the "How to test
+  manually" PR section heading and its placeholder text (shown when `--how-to-test-file` isn't
+  provided), plus the `--how-to-test-file` help text in both `pr_maestro.py` and
+  `pr_template_apply.py`. All user-facing strings this skill writes into commits, PRs, and CLI help
+  must always be in English, regardless of the language used elsewhere in the conversation. These are
+  now all in English: `## 🧭 How to test manually` (was `Como testar manualmente`) and its
+  placeholder/help text.
+
 ## [1.2.2]
 
 - Fix: `pr-maestro`'s quality gate was hardcoded to Node/pnpm commands (`pnpm coverage`, `pnpm run

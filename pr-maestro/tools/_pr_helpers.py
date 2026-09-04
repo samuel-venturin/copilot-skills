@@ -358,9 +358,9 @@ def build_how_to_test_lines(how_to_test: str | None) -> list[str]:
         return [how_to_test.strip()]
 
     return [
-        "_Nenhum tutorial de teste manual foi fornecido nesta execução. Gere um com a skill "
-        "`qa-test-tutorial` (Fase A) e rode novamente com `--how-to-test-file <arquivo>` para "
-        "incluir esta seção automaticamente._",
+        "_No manual test tutorial was provided for this run. Generate one with the "
+        "`qa-test-tutorial` skill (Phase A) and rerun with `--how-to-test-file <file>` to "
+        "include this section automatically._",
     ]
 
 
@@ -446,7 +446,7 @@ def build_template_body(
         "",
         "---",
         "",
-        "## 🧭 Como testar manualmente",
+        "## 🧭 How to test manually",
         *how_to_test_lines,
         "",
         "---",

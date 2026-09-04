@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--how-to-test-file",
         default=None,
-        help="Path to a Markdown file whose content is embedded as the 'Como testar manualmente' section.",
+        help="Path to a Markdown file whose content is embedded as the 'How to test manually' section.",
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--output-body-file", default=None)
