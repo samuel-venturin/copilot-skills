@@ -99,7 +99,7 @@ def parse_args(config: dict) -> argparse.Namespace:
         "--how-to-test-file",
         default=None,
         help="Path to a Markdown file (typically produced by the qa-test-tutorial skill, Phase A) "
-        "whose content is embedded as the 'Como testar manualmente' section of the PR body.",
+        "whose content is embedded as the 'How to test manually' section of the PR body.",
     )
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
