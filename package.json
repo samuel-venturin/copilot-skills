@@ -1,6 +1,6 @@
 {
   "name": "copilot-skills-install",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "First-run installer for the copilot-skills collection — copies every skill into ~/.copilot/skills.",
   "private": true,
   "license": "UNLICENSED",
