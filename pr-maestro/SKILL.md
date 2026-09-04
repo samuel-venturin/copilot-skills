@@ -40,9 +40,15 @@ Behavior note:
 - Bytecode writing is disabled by default via config (`python.writeBytecode=false`).
 - PR body generation is always refined (context-aware, no generic TODO placeholders).
 - Quality gate runs by default before PR update/create.
-- Default quality commands: `pnpm coverage`, `pnpm run typecheck`, `pnpm run lint`.
-- If any configured command fails, PR generation/update is blocked.
-- `Tests` and `Coverage` sections are filled from real command results and coverage artifact (`coverage/lcov.info`).
+- Quality gate commands are picked automatically per project type via `quality.profiles` in
+  `config.json` — detected by a marker file/glob at the repo root: `package.json` → Node profile
+  (`pnpm coverage`, `pnpm run typecheck`, `pnpm run lint`); `*.sln` → .NET profile (`dotnet build -c
+  Release`, `dotnet test -c Release`). Falls back to `quality.defaultProfile`, and if no profile
+  matches at all, to the legacy flat `quality.commands`/`quality.blockingCommands` keys (so existing
+  configs keep working unchanged). The detected profile name is reported as `qualityGate.profile` in
+  the JSON output.
+- If any configured (blocking) command fails, PR generation/update is blocked.
+- `Tests` and `Coverage` sections are filled from real command results and coverage artifact (`coverage/lcov.info`, when the profile produces one).
 
 ## "Como testar manualmente" section
 
