@@ -4,6 +4,18 @@ All notable changes to this repository are documented here. Versions follow
 `package.json`'s `version` field. `update.js` reads this file to print a
 summary of what's new whenever you update.
 
+## [1.2.2]
+
+- Fix: `pr-maestro`'s quality gate was hardcoded to Node/pnpm commands (`pnpm coverage`, `pnpm run
+  typecheck`, `pnpm run lint`), so running it against a non-Node repo (e.g. .NET) always failed with
+  `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND` and blocked PR creation/update, regardless of whether the
+  actual project's tests passed. `config.json` now supports a `quality.profiles` map keyed by
+  project type, each with its own `detect` glob(s), `commands`, and `blockingCommands`; `pr_maestro.py`
+  auto-detects the right profile from the repo root (`package.json` → Node/pnpm, `*.sln` → .NET
+  `dotnet build`/`dotnet test`) before running the gate, and reports the chosen profile as
+  `qualityGate.profile` in its JSON output. Falls back to the legacy flat `quality.commands`/
+  `quality.blockingCommands` keys when no profile matches, so existing configs are unaffected.
+
 ## [1.2.1]
 
 - Fix: `update`, `uninstall`, and `schedule-check` now work via a plain

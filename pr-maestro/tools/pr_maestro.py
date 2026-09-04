@@ -153,9 +153,39 @@ def create_and_push_tag(tag: str, dry_run: bool) -> str:
     return "created"
 
 
-def run_quality_gate(config: dict, enabled: bool) -> dict:
+def detect_quality_profile(config: dict, root: Path) -> tuple[str | None, dict]:
+    """Picks the quality-gate command profile for this repo's project type.
+
+    Looks at `quality.profiles` in config.json, each with a `detect` list of glob
+    patterns (relative to the repo root). The first profile with a matching file
+    wins (e.g. a `*.sln` selects the `dotnet` profile instead of the Node/pnpm
+    one). Falls back to `quality.defaultProfile`, and if profiles are missing or
+    none match, to the legacy flat `quality.commands`/`quality.blockingCommands`
+    keys so existing per-repo configs keep working unchanged.
+    """
     quality_section = config.get("quality", {}) if isinstance(config, dict) else {}
-    commands = quality_section.get(
+    profiles = quality_section.get("profiles")
+    if not isinstance(profiles, dict) or not profiles:
+        return None, quality_section
+
+    for name, profile in profiles.items():
+        if not isinstance(profile, dict):
+            continue
+        detect_patterns = profile.get("detect", [])
+        for pattern in detect_patterns:
+            if isinstance(pattern, str) and any(root.glob(pattern)):
+                return name, profile
+
+    default_profile = quality_section.get("defaultProfile")
+    if isinstance(default_profile, str) and default_profile in profiles:
+        return default_profile, profiles[default_profile]
+
+    return None, quality_section
+
+
+def run_quality_gate(config: dict, enabled: bool) -> dict:
+    profile_name, profile_section = detect_quality_profile(config, ROOT)
+    commands = profile_section.get(
         "commands",
         [
             "pnpm coverage",
@@ -163,7 +193,7 @@ def run_quality_gate(config: dict, enabled: bool) -> dict:
             "pnpm run lint",
         ],
     )
-    blocking_commands = quality_section.get("blockingCommands", ["pnpm coverage"])
+    blocking_commands = profile_section.get("blockingCommands", ["pnpm coverage"])
     normalized_blocking_commands = [
         command for command in blocking_commands if isinstance(command, str) and command.strip()
     ]
@@ -174,6 +204,7 @@ def run_quality_gate(config: dict, enabled: bool) -> dict:
             "allPassed": True,
             "commands": [],
             "coverage": None,
+            "profile": profile_name,
         }
 
     results: list[dict] = []
@@ -225,6 +256,7 @@ def run_quality_gate(config: dict, enabled: bool) -> dict:
         "nonBlockingFailures": non_blocking_failures,
         "commands": results,
         "coverage": coverage,
+        "profile": profile_name,
     }
 
 

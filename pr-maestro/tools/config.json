@@ -12,6 +12,29 @@
   },
   "quality": {
     "requirePassingTests": true,
+    "defaultProfile": "node",
+    "profiles": {
+      "node": {
+        "detect": ["package.json"],
+        "commands": [
+          "pnpm coverage",
+          "pnpm run typecheck",
+          "pnpm run lint"
+        ],
+        "blockingCommands": ["pnpm coverage"]
+      },
+      "dotnet": {
+        "detect": ["*.sln"],
+        "commands": [
+          "dotnet build -c Release",
+          "dotnet test -c Release"
+        ],
+        "blockingCommands": [
+          "dotnet build -c Release",
+          "dotnet test -c Release"
+        ]
+      }
+    },
     "blockingCommands": [
       "pnpm coverage"
     ],
