@@ -279,6 +279,52 @@ If approval fails → **STOP**. Ask user to retry with correct token.
 
 ---
 
+## Ad-hoc / Standalone Sub-skill Invocation
+
+Use this mode when there is **no ticket/card** (e.g. quick validation on the current branch/repo)
+or when you only need to run **one specific phase** in isolation — for example, generating QA
+visual evidence without running the full 8-phase flow. This mode does **not** modify any sub-skill
+file; it only changes which inputs are supplied to the existing sub-skill, which is invoked exactly
+as documented in its own `SKILL.md`.
+
+### Syntax
+
+```
+/execute --phase <phase> [notes]
+```
+
+`<phase>` is one of: `validate`, `setup`, `tdd-red`, `transition`, `implementation`,
+`code-review`, `qa-validation`, `approve`.
+
+### What changes vs. the normal ticket-based flow
+
+- **No ticket required.** Skip every guard/step that depends on a ticket record
+  (`DEPENDENCY_GUARD`, `ARTIFACT_GUARD`, `STATUS_GATE`) — do **not** call `$TM` in ad-hoc mode.
+- **No worktree required.** `$WORKTREE_PATH` = current repo root (`cwd`). Do not create a new
+  worktree; if the user is already on a feature branch/worktree, use it as-is.
+- **`$TICKET` placeholder** = `adhoc-<YYYYMMDD-HHmm>`, used only to namespace any generated
+  report/evidence folder (e.g. `docs/adhoc/qa-validation/<TICKET>/QA_VALIDATION_REPORT.json`).
+- **Phases that assume a plan exists** (`tdd-red`, `transition`) require `QUALITY.md`, which won't
+  exist ad-hoc — only run them if the user explicitly points to an existing `QUALITY.md`.
+- Everything else in the target sub-skill's `SKILL.md` (steps, tools, safety rules, decision gates)
+  runs unchanged.
+
+### Visual evidence add-on for `qa-validation`
+
+When the user asks for **visual evidence** during a `qa-validation` run (ad-hoc or ticket-based):
+
+1. Run `/execute-qa-validation` Steps 9-10 exactly as written.
+2. If GREEN, additionally run **Phase B of `/qa-test-tutorial`** (playwright-cli screenshot
+   capture) against the flows just validated, reusing its rules as-is:
+   - one screenshot per meaningful checkpoint/"Resultado esperado"
+   - never handle credentials — human completes SSO manually in the browser
+   - save screenshots to `$env:USERPROFILE\Documents\<TICKET-or-adhoc-id>-evidencias\`
+3. Report the final screenshot folder path to the user alongside the QA validation result.
+
+No new code or sub-skill rewrite is needed here — this only chains two existing skills together.
+
+---
+
 ## Safety Rules
 
 - **Foreground-only execution** — all phases are synchronous, never dispatch subskills in background
