@@ -16,8 +16,10 @@
  * it doubles as a single dispatch entrypoint for the other scripts in this
  * repo, so every command works through the same `npx` invocation without
  * needing `--package=`:
- *   npx github:<owner>/copilot-skills                 → install (default)
+ *   npx github:<owner>/copilot-skills                 → install (default, Copilot)
  *   npx github:<owner>/copilot-skills install [...]    → install (explicit)
+ *   npx github:<owner>/copilot-skills install-cursor   → install into Cursor
+ *   npx github:<owner>/copilot-skills cursor           → alias for install-cursor
  *   npx github:<owner>/copilot-skills update [...]     → runs update.js
  *   npx github:<owner>/copilot-skills uninstall [...]  → runs uninstall.js
  *   npx github:<owner>/copilot-skills schedule-check [...] → runs schedule-check.js
@@ -44,6 +46,8 @@ const SUBCOMMANDS = {
   update: "update.js",
   uninstall: "uninstall.js",
   "schedule-check": "schedule-check.js",
+  "install-cursor": "install-cursor.js",
+  cursor: "install-cursor.js",
 };
 
 // Inspects the first positional argument for a known subcommand and, if
@@ -155,8 +159,11 @@ these as the first argument instead of an install flag:
   update            → runs update.js (updates already-installed skills)
   uninstall         → runs uninstall.js
   schedule-check    → runs schedule-check.js
+  install-cursor    → runs install-cursor.js (Cursor Agent Skills)
+  cursor            → alias for install-cursor
   install           → runs the installer explicitly (same as no subcommand)
 Example: npx github:${REPO_SLUG} update --yes
+         npx github:${REPO_SLUG} install-cursor
 
 Options:
   --target <dir>        Install destination (default: ~/.copilot/skills, or
