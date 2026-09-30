@@ -26,6 +26,8 @@ This repository mirrors the skills normally kept in `~/.copilot/skills/`.
 
 Requires [Node.js](https://nodejs.org) ≥ 18 (no other dependencies are installed).
 
+### GitHub Copilot CLI
+
 **Option A — no clone needed:**
 
 ```powershell
@@ -45,7 +47,40 @@ If a skill with the same name already exists there, it is backed up automaticall
 (`~/.copilot/skills/_backup_<timestamp>/<skill>`) before being replaced — nothing is
 silently overwritten.
 
-After copying the skills, the installer checks whether the core CLIs the skills
+### Cursor (Agent Skills)
+
+One command installs skills, shared Python scripts, an always-apply Cursor rule, and
+syncs into every personal Cursor Agent Store found on the machine (auto-detected):
+
+```powershell
+npx github:samuel-venturin/copilot-skills install-cursor
+# alias:
+npx github:samuel-venturin/copilot-skills cursor
+```
+
+What it does automatically:
+
+- Copies skills into `~/.cursor/skills` (paths rewritten from `~/.claude` / `~/.copilot`)
+- Installs bundled scripts into `~/.cursor/scripts` (`task_manager.py`, `spec-extractor.tool.py`)
+- Writes `~/.cursor/rules/copilot-skills.mdc` (`alwaysApply: true`)
+- Detects personal Agent Stores under
+  `%LOCALAPPDATA%\Cursor\AgentStores\cursor_agent_stores\t*-u*\files` (Windows) /
+  equivalent macOS/Linux paths, and installs into each `skills/` folder
+
+Useful flags:
+
+```powershell
+npx github:samuel-venturin/copilot-skills install-cursor --dry-run
+npx github:samuel-venturin/copilot-skills install-cursor --force
+npx github:samuel-venturin/copilot-skills install-cursor --no-agent-store
+npx github:samuel-venturin/copilot-skills install-cursor --only interpret,pr-maestro,qa-test-tutorial
+```
+
+After installing, restart Cursor or open a new Agent chat so skills/rules reload.
+
+### Copilot installer tool checks
+
+After copying the Copilot skills, `install.js` checks whether the core CLIs the skills
 depend on are on `PATH`: **`gh`, `copilot`, `python`, `dotnet`, `pnpm`**. If any are
 missing, it asks for permission before installing anything:
 
