@@ -4,6 +4,21 @@ All notable changes to this repository are documented here. Versions follow
 `package.json`'s `version` field. `update.js` reads this file to print a
 summary of what's new whenever you update.
 
+## [1.3.0]
+
+- Add `install-cursor.js`: first-class Cursor installer, runnable via
+  `npx github:samuel-venturin/copilot-skills install-cursor` (alias: `cursor`).
+  It installs skills into `~/.cursor/skills`, shared scripts into
+  `~/.cursor/scripts`, writes `~/.cursor/rules/copilot-skills.mdc`, rewrites
+  Copilot/Claude paths to Cursor paths, prefers `python` on Windows, and
+  auto-detects personal Cursor Agent Stores
+  (`…/Cursor/AgentStores/cursor_agent_stores/t*-u*/files`) with no manual path.
+- Bundle shared Python helpers under `scripts/` (`task_manager.py`,
+  `spec-extractor.tool.py`) so Cursor installs work for colleagues without a
+  pre-existing `~/.claude/scripts` folder.
+- Expose `copilot-skills-install-cursor` bin and wire `install-cursor` /
+  `cursor` subcommands through `install.js` dispatch.
+
 ## [1.2.3]
 
 - Fix: `pr-maestro` had hardcoded Portuguese-language strings in generated output — the "How to test

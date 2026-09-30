@@ -1,11 +1,12 @@
 {
   "name": "copilot-skills-install",
-  "version": "1.2.3",
-  "description": "First-run installer for the copilot-skills collection — copies every skill into ~/.copilot/skills.",
+  "version": "1.3.0",
+  "description": "Installer for the copilot-skills collection — Copilot CLI (~/.copilot/skills) and Cursor Agent Skills (~/.cursor/skills).",
   "private": true,
   "license": "UNLICENSED",
   "bin": {
     "copilot-skills-install": "./install.js",
+    "copilot-skills-install-cursor": "./install-cursor.js",
     "copilot-skills-uninstall": "./uninstall.js",
     "copilot-skills-update": "./update.js",
     "copilot-skills-schedule-check": "./schedule-check.js"
