@@ -4,6 +4,14 @@ All notable changes to this repository are documented here. Versions follow
 `package.json`'s `version` field. `update.js` reads this file to print a
 summary of what's new whenever you update.
 
+## [1.3.1] (unreleased)
+
+- Add Jira Cloud tooling under `scripts/` (`jira_client.py`, `jira.tool.py`) that reads
+  credentials from `~/.cursor/agent-env/.env` (never from chat).
+- Commands: `myself`, `mine` (assignee = currentUser), `get <KEY>`, `search --jql`.
+- `interpret` skill can fetch a ticket by key when local `specs/<TICKET>.md` is missing,
+  and supports `mine` to list cards assigned to the current user.
+
 ## [1.3.0]
 
 - Add `install-cursor.js`: first-class Cursor installer, runnable via

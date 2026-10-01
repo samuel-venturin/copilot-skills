@@ -1,12 +1,13 @@
 ---
 name: interpret
-description: Interpret a Jira spec and produce planning artifacts — PRD, PROMPT, QUALITY. Triggered automatically when XML is pasted.
+description: Interpret a Jira spec and produce planning artifacts — PRD, PROMPT, QUALITY. Triggered automatically when XML is pasted. Can also fetch a ticket from Jira API via issue key when credentials exist in ~/.cursor/agent-env/.env.
 ---
 
 # /interpret — Task Interpreter
 
-> `$TM` = `python3 ~/.claude/scripts/task_manager.py`
-> `$SE` = `python3 ~/.claude/scripts/spec-extractor.tool.py`
+> `$TM` = `python ~/.cursor/scripts/task_manager.py`
+> `$SE` = `python ~/.cursor/scripts/spec-extractor.tool.py`
+> `$JIRA` = `python ~/.cursor/scripts/jira.tool.py`
 > All commands run with `cwd = <PROJECT_ROOT>`.
 
 Input: `$ARGUMENTS` — ticket ID, spec file path, or empty (XML already in conversation context). Optionally followed by `--in-background` flag.
@@ -15,6 +16,10 @@ Flags:
 - `--in-background` — create a git worktree for isolated execution (background agent mode). Default: **off** (work in main repo).
 
 This command runs **entirely in foreground**. Do not dispatch background agents.
+
+**Jira credentials** (optional but preferred for ticket keys):
+`~/.cursor/agent-env/.env` → `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN`, `ATLASSIAN_BASE_URL`.
+Never ask the user to paste tokens in chat; if missing, point them to that file.
 
 ---
 
@@ -25,13 +30,27 @@ Determine the spec source from `$ARGUMENTS` and conversation context:
 | Condition | Input mode |
 |-----------|-----------|
 | `$ARGUMENTS` is empty AND conversation contains raw XML (starts with `<`, has `<rss`/`<item`) | `xml-paste` — use XML from conversation |
-| `$ARGUMENTS` looks like a ticket (e.g. `CTR-1200`) | `ticket-file` — look for `specs/CTR-1200.md` |
+| `$ARGUMENTS` looks like a ticket (e.g. `CTR-1200`) AND `specs/<TICKET>.md` exists | `ticket-file` — use local spec |
+| `$ARGUMENTS` looks like a ticket AND local spec is missing | `jira-fetch` — pull from Jira API, then save under `specs/` |
 | `$ARGUMENTS` is a file path | `spec-file` — use the file directly |
-| None of the above | Ask: "Cole o XML do Jira ou informe o ticket/arquivo do spec." |
+| `$ARGUMENTS` is `mine` / `--mine` | `jira-mine` — list cards assigned to current user (stop after listing unless user picks one) |
+| None of the above | Ask: "Cole o XML do Jira, informe o ticket (ex. CTR-1200), ou diga `mine` para listar os seus cards." |
 
 ---
 
 ## Step 1 — Extract spec data
+
+### If input mode is `jira-mine`:
+1. Run: `$JIRA mine --max 30`
+2. Show a compact table: key, type, status, summary, url.
+3. Ask which key to interpret (or stop if the user only wanted the list).
+4. When they pick a key, continue as `jira-fetch`.
+
+### If input mode is `jira-fetch`:
+1. Run: `$JIRA get <TICKET> --markdown --save <PROJECT_ROOT>/specs/<TICKET>.md`
+2. If JSON has `error` → **stop**, show error (and remind about `~/.cursor/agent-env/.env` on auth failures).
+3. Prefer `$SE` on the saved markdown/description when possible; if extractor expects XML and fails, use the markdown fields from `$JIRA get` output (`issue.summary`, `markdown`) as the planning source and continue.
+4. Continue to Step 2.
 
 ### If input mode is `xml-paste`:
 1. Save validated XML to `<PROJECT_ROOT>/specs/<TICKET>.md` (create `specs/` with `mkdir -p` if needed), using this template:
@@ -52,9 +71,10 @@ Determine the spec source from `$ARGUMENTS` and conversation context:
 3. Continue to Step 2.
 
 ### If input mode is `ticket-file` or `spec-file`:
-1. Read the XML block from the spec file.
-2. Run: `$SE --xml "<xml_block>"`
-3. Continue to Step 2.
+1. Read the XML block from the spec file (or full markdown if `source: jira-api`).
+2. If XML block exists: Run `$SE --xml "<xml_block>"`.
+3. Else if frontmatter has `source: jira-api`: treat markdown body as the spec source (no XML required).
+4. Continue to Step 2.
 
 ### Validate extractor output:
 - `success: false` or error → **stop**, show error to user.
