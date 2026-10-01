@@ -35,11 +35,21 @@ from jira_client import (  # noqa: E402
 
 
 def _out(data: dict, indent: int = 2):
-    print(json.dumps(data, ensure_ascii=False, indent=indent))
+    payload = json.dumps(data, ensure_ascii=False, indent=indent)
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    sys.stdout.buffer.write((payload + "\n").encode("utf-8"))
 
 
 def _err(msg: str, code: int = 1):
-    print(json.dumps({"error": msg}, ensure_ascii=False))
+    payload = json.dumps({"error": msg}, ensure_ascii=False)
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    sys.stdout.buffer.write((payload + "\n").encode("utf-8"))
     sys.exit(code)
 
 
@@ -160,7 +170,10 @@ def main() -> None:
             payload["status"] = e.status
         if e.body is not None:
             payload["details"] = e.body
-        print(json.dumps(payload, ensure_ascii=False))
+        try:
+            sys.stdout.buffer.write((json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8"))
+        except Exception:
+            print(json.dumps(payload, ensure_ascii=False))
         sys.exit(1)
     except Exception as e:  # noqa: BLE001
         _err(f"Unexpected error: {e}")
