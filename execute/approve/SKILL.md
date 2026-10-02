@@ -69,15 +69,15 @@ Confirm:
 ## Cleanup Phase (Optional)
 
 Ask:
-> "Deseja limpar os artefatos temporários de `<PROJECT_ROOT>/docs/tasks/<TICKET>/`?
+> "Deseja limpar artefatos temporários do workspace Documents (`$WS resolve` → ticketDir)?
 >
 > - PROMPT.md seria removido
-> - PRD.md e QUALITY.md seriam mantidos (artefatos versionados)
-> - docs/ux/ nunca é removido"
+> - PRD.md e QUALITY.md seriam mantidos
+> - evidence/ nunca é removido automaticamente"
 
 If user confirms:
 ```bash
-rm <PROJECT_ROOT>/docs/tasks/<TICKET>/PROMPT.md
+# Remove only PROMPT.md under Documents ticketDir (from $WS resolve)
 ```
 
 Confirm:

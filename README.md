@@ -9,13 +9,15 @@ This repository mirrors the skills normally kept in `~/.copilot/skills/`.
 | Skill | Description |
 |---|---|
 | `commit-changes` | Commit changes using atomic commits following a defined commit convention. Runs required checks, stages selectively, and creates well-formed commits. Never pushes automatically. |
+| `dev-day` | Orchestrates the daily desk — Jira sprint/mine, interpret into Documents/copilot-workspace, execute, fix-evidence, then qa-test-tutorial. |
 | `execute` | Execute a planned task end-to-end, using specific sub-skills for each step of the workflow (setup, tdd-red, implementation, code-review, qa-validation, approve, transition, validate). |
+| `fix-evidence` | Capture ordered success screenshots for a shipped ticket, save named PNGs under Documents/copilot-workspace, optionally attach them to Jira in order. Runs before qa-test-tutorial. |
 | `ideas-notes` | Consult and update persistent idea notes for automation/testing workflows. |
-| `interpret` | Interpret a Jira spec and produce planning artifacts — PRD, PROMPT, QUALITY. |
+| `interpret` | Interpret a Jira issue (API-first) and produce PRD, PROMPT, QUALITY under Documents/copilot-workspace. |
 | `local-stack` | Manage a local development stack (start/stop/restart/reset/logs) across infra, domain, tasks, bff, and frontend services. |
 | `playwright-cli` | Automate browser interactions for web testing, form filling, screenshots, and data extraction. |
 | `pr-maestro` | Single-entry PR automation using Python tools for tagging, PR creation, and template application. Supports an optional `--how-to-test-file` to inject a manual-test tutorial into the PR body. |
-| `qa-test-tutorial` | Writes a manual QA test tutorial for an already-implemented ticket and, by default, immediately executes it end-to-end with `playwright-cli` against the real dev environment, saving screenshot evidence straight to `Documents/<TICKET>-evidencias/`. |
+| `qa-test-tutorial` | Writes a manual QA test tutorial for an already-implemented ticket and optionally runs it with playwright-cli. Correction-evidence Jira upload is owned by `fix-evidence`. |
 | `refactor` | Single-entry refactoring automation with Python tools for code analysis, spec generation, and guided refactoring (dead code removal, simplification, naming, clean code, pattern conformance). |
 | `release-maestro` | Single-entry release automation for tag recommendation, tag creation, release notes generation, and release create/update. |
 | `tasks` | Manage a task queue — list, next, inspect, set dependencies, and transition status. |
@@ -61,7 +63,7 @@ npx github:samuel-venturin/copilot-skills cursor
 What it does automatically:
 
 - Copies skills into `~/.cursor/skills` (paths rewritten from `~/.claude` / `~/.copilot`)
-- Installs bundled scripts into `~/.cursor/scripts` (`task_manager.py`, `spec-extractor.tool.py`)
+- Installs bundled scripts into `~/.cursor/scripts` (`task_manager.py`, `spec-extractor.tool.py`, `jira.tool.py`, `workspace_paths.py`)
 - Writes `~/.cursor/rules/copilot-skills.mdc` (`alwaysApply: true`)
 - Detects personal Agent Stores under
   `%LOCALAPPDATA%\Cursor\AgentStores\cursor_agent_stores\t*-u*\files` (Windows) /
@@ -150,34 +152,52 @@ unless you pass `--all`.
 
 ## Updating
 
-Every install writes a small manifest (`.copilot-skills-manifest.json`) inside the
-target directory recording the installed version and skill list. `update.js` uses it
-to figure out what changed.
+Installers write a small manifest inside the target directory:
 
-**Option A — no clone needed:**
+| Installer | Manifest | Default target |
+|---|---|---|
+| `install.js` (Copilot) | `.copilot-skills-manifest.json` | `~/.copilot/skills` |
+| `install-cursor.js` (Cursor) | `.cursor-skills-manifest.json` | `~/.cursor/skills` |
+
+`update.js` reads that manifest, prints `CHANGELOG.md` entries newer than your install,
+and applies the update.
+
+**Cursor (recommended):**
+
+```powershell
+npx github:samuel-venturin/copilot-skills update --cursor
+npx github:samuel-venturin/copilot-skills update --cursor --check-only
+npx github:samuel-venturin/copilot-skills update --cursor --yes
+```
+
+Cursor updates re-run `install-cursor --force` so skills, `~/.cursor/scripts`, rules, and
+Agent Store stay in sync (including newly added skills).
+
+**Copilot CLI:**
 
 ```powershell
 npx github:samuel-venturin/copilot-skills update
 npx github:samuel-venturin/copilot-skills update --check-only
 ```
 
+If both installs exist, omit flags and `update.js` prefers Cursor when its manifest is present.
+
 **Option B — clone first, then run the script directly:**
 
 ```powershell
 git clone https://github.com/samuel-venturin/copilot-skills.git
 cd copilot-skills
-node update.js                 # check for updates, show what's new, and apply if you confirm
-node update.js --check-only    # just report whether an update is available
-node update.js --dry-run       # show what would be updated without changing anything
-node update.js --yes           # skip the confirmation prompt
+node update.js --cursor          # Cursor install
+node update.js                   # auto-detect / Copilot
+node update.js --check-only
+node update.js --dry-run
+node update.js --yes
 node update.js --target C:\custom\path
 node update.js --help
 ```
 
-`update.js` only touches the skills you already have installed (per the manifest) —
-it won't add skills you never installed, and it prints the relevant `CHANGELOG.md`
-entries (every version newer than the one you had) straight to the terminal before
-applying anything.
+For Copilot installs, `update.js` only refreshes skills already listed in the manifest.
+For Cursor installs it refreshes the full Cursor layout (skills + scripts + rules + stores).
 
 ## Daily update check (optional)
 

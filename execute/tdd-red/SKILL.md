@@ -5,13 +5,14 @@ description: TDD-RED phase — Write all unit and E2E tests FIRST (in failing st
 
 # /execute-tdd-red — Test-First (TDD-RED) Phase
 
-> `$TM` = `python3 ~/.claude/scripts/task_manager.py`
+> `$TM` = `python ~/.cursor/scripts/task_manager.py`
+> `$WS` = `python ~/.cursor/scripts/workspace_paths.py`
 
-Input (from `/execute-setup` output):
+Input (from `/execute-setup` / `/execute-validate` output):
 - `$TICKET` — task ID
 - `$WORKTREE_PATH` — worktree path
-- `$QUALITY_PATH` — `/docs/tasks/<TICKET>/QUALITY.md`
-- `$PROMPT_PATH` — `/docs/tasks/<TICKET>/PROMPT.md`
+- `$QUALITY_PATH` — Documents path from `$WS resolve` → `quality` (legacy `docs/tasks/...` only as fallback)
+- `$PROMPT_PATH` — Documents path from `$WS resolve` → `prompt`
 
 ---
 
