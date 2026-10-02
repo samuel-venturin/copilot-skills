@@ -49,14 +49,14 @@ If all tests are GREEN:
 **Proceed to next phase: `/execute-approve`**
 
 If any test fails:
-- Generate report file:
+- Generate report file under Documents workspace:
 
 ```bash
-mkdir -p <WORKTREE_PATH>/docs/tasks/<TICKET>
+python ~/.cursor/scripts/workspace_paths.py ensure <TICKET> --repo <PROJECT_ROOT>
 ```
 
 Write JSON report at:
-- `<WORKTREE_PATH>/docs/tasks/<TICKET>/QA_VALIDATION_REPORT.json`
+- `<ticketDir>/QA_VALIDATION_REPORT.json` (from `$WS resolve`)
 
 Minimum report payload:
 
@@ -73,7 +73,7 @@ Minimum report payload:
 ```
 
 Then stop and notify user:
-> "⛔ QA validation failed. Report generated at `docs/tasks/<TICKET>/QA_VALIDATION_REPORT.json`.  
+> "⛔ QA validation failed. Report generated at `<ticketDir>/QA_VALIDATION_REPORT.json`.  
 > Processo interrompido para continuidade manual."
 
 ---

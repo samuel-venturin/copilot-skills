@@ -178,6 +178,170 @@ class JiraClient:
                 return self.search_legacy(jql, max_results=max_results)
             raise
 
+    def sprint_assigned_to_me(self, *, max_results: int = 50, include_done: bool = False) -> dict[str, Any]:
+        jql = "assignee = currentUser() AND sprint in openSprints()"
+        if not include_done:
+            jql += " AND statusCategory != Done"
+        jql += " ORDER BY priority ASC, updated DESC"
+        try:
+            return self.search(jql, max_results=max_results)
+        except JiraError as e:
+            if e.status in (404, 410):
+                return self.search_legacy(jql, max_results=max_results)
+            raise
+
+    def get_transitions(self, key: str) -> list[dict[str, Any]]:
+        key = _normalize_key(key)
+        data = self.request("GET", f"/rest/api/3/issue/{key}/transitions")
+        return list((data or {}).get("transitions") or [])
+
+    def transition_issue(
+        self,
+        key: str,
+        *,
+        transition_id: Optional[str] = None,
+        to_name: Optional[str] = None,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        key = _normalize_key(key)
+        transitions = self.get_transitions(key)
+        chosen: Optional[dict[str, Any]] = None
+        if transition_id:
+            tid = str(transition_id)
+            chosen = next((t for t in transitions if str(t.get("id")) == tid), None)
+            if not chosen:
+                raise JiraError(f"Transition id {tid} not available for {key}")
+        elif to_name:
+            needle = to_name.strip().lower()
+            chosen = next(
+                (t for t in transitions if str(t.get("name") or "").strip().lower() == needle),
+                None,
+            )
+            if not chosen:
+                # partial match fallback
+                chosen = next(
+                    (t for t in transitions if needle in str(t.get("name") or "").strip().lower()),
+                    None,
+                )
+            if not chosen:
+                names = [t.get("name") for t in transitions]
+                raise JiraError(f"No transition matching '{to_name}' for {key}. Available: {names}")
+        else:
+            raise JiraError("Provide transition_id or to_name")
+
+        payload = {"transition": {"id": str(chosen["id"])}}
+        if dry_run:
+            return {"dryRun": True, "key": key, "transition": chosen, "payload": payload}
+        self.request("POST", f"/rest/api/3/issue/{key}/transitions", body=payload)
+        return {"key": key, "transition": chosen}
+
+    def add_comment(self, key: str, body_text: str) -> dict[str, Any]:
+        key = _normalize_key(key)
+        adf = plain_text_to_adf(body_text)
+        return self.request(
+            "POST",
+            f"/rest/api/3/issue/{key}/comment",
+            body={"body": adf},
+        )
+
+    def attach_files(self, key: str, files: list[Path]) -> list[dict[str, Any]]:
+        """Upload files in order via multipart. Returns list of attachment metadata."""
+        key = _normalize_key(key)
+        if not files:
+            raise JiraError("No files to attach")
+        results: list[dict[str, Any]] = []
+        for path in files:
+            path = Path(path)
+            if not path.is_file():
+                raise JiraError(f"File not found: {path}")
+            results.append(self._upload_attachment(key, path))
+        return results
+
+    def _upload_attachment(self, key: str, path: Path) -> dict[str, Any]:
+        boundary = f"----copilotBoundary{os.urandom(8).hex()}"
+        filename = path.name
+        file_bytes = path.read_bytes()
+        # Guess content type lightly
+        suffix = path.suffix.lower()
+        ctype = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+            ".pdf": "application/pdf",
+            ".md": "text/markdown",
+            ".txt": "text/plain",
+        }.get(suffix, "application/octet-stream")
+
+        body = bytearray()
+        body.extend(f"--{boundary}\r\n".encode("utf-8"))
+        body.extend(
+            f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'.encode("utf-8")
+        )
+        body.extend(f"Content-Type: {ctype}\r\n\r\n".encode("utf-8"))
+        body.extend(file_bytes)
+        body.extend(f"\r\n--{boundary}--\r\n".encode("utf-8"))
+
+        url = f"{self.base_url}/rest/api/3/issue/{key}/attachments"
+        headers = {
+            "Authorization": self._headers["Authorization"],
+            "Accept": "application/json",
+            "X-Atlassian-Token": "no-check",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        }
+        req = urllib.request.Request(url, data=bytes(body), headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                raw = resp.read().decode("utf-8")
+                parsed = json.loads(raw) if raw else []
+                # API returns a list of attachments
+                if isinstance(parsed, list) and parsed:
+                    return parsed[0]
+                if isinstance(parsed, dict):
+                    return parsed
+                return {"filename": filename, "raw": parsed}
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="replace")
+            try:
+                parsed_err = json.loads(err_body) if err_body else None
+            except json.JSONDecodeError:
+                parsed_err = err_body
+            raise JiraError(
+                f"Jira HTTP {e.code} on POST /rest/api/3/issue/{key}/attachments",
+                status=e.code,
+                body=parsed_err,
+            ) from e
+        except urllib.error.URLError as e:
+            raise JiraError(f"Jira connection error: {e}") from e
+
+
+def _normalize_key(key: str) -> str:
+    key = key.strip().upper()
+    if not re.fullmatch(r"[A-Z][A-Z0-9]+-\d+", key):
+        raise JiraError(f"Invalid issue key: {key}")
+    return key
+
+
+def plain_text_to_adf(text: str) -> dict[str, Any]:
+    """Convert plain text (paragraphs separated by blank lines) to minimal ADF."""
+    paragraphs = re.split(r"\n\s*\n", (text or "").strip())
+    content: list[dict[str, Any]] = []
+    for para in paragraphs:
+        lines = para.split("\n")
+        nodes: list[dict[str, Any]] = []
+        for i, line in enumerate(lines):
+            if i:
+                nodes.append({"type": "hardBreak"})
+            if line:
+                nodes.append({"type": "text", "text": line})
+        if not nodes:
+            nodes = [{"type": "text", "text": " "}]
+        content.append({"type": "paragraph", "content": nodes})
+    if not content:
+        content = [{"type": "paragraph", "content": [{"type": "text", "text": " "}]}]
+    return {"type": "doc", "version": 1, "content": content}
+
 
 def adf_to_text(node: Any) -> str:
     """Best-effort Atlassian Document Format → plain text."""

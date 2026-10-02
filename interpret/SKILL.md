@@ -1,6 +1,6 @@
 ---
 name: interpret
-description: Interpret a Jira spec and produce planning artifacts — PRD, PROMPT, QUALITY. Triggered automatically when XML is pasted. Can also fetch a ticket from Jira API via issue key when credentials exist in ~/.cursor/agent-env/.env.
+description: Interpret a Jira issue and produce planning artifacts — PRD, PROMPT, QUALITY — under Documents/copilot-workspace. Prefers Jira API by ticket key; XML paste is legacy fallback only.
 ---
 
 # /interpret — Task Interpreter
@@ -8,111 +8,101 @@ description: Interpret a Jira spec and produce planning artifacts — PRD, PROMP
 > `$TM` = `python ~/.cursor/scripts/task_manager.py`
 > `$SE` = `python ~/.cursor/scripts/spec-extractor.tool.py`
 > `$JIRA` = `python ~/.cursor/scripts/jira.tool.py`
-> All commands run with `cwd = <PROJECT_ROOT>`.
+> `$WS` = `python ~/.cursor/scripts/workspace_paths.py`
+> All git commands run with `cwd = <PROJECT_ROOT>` (repo). Planning artifacts live under Documents (see `$WS`).
 
-Input: `$ARGUMENTS` — ticket ID, spec file path, or empty (XML already in conversation context). Optionally followed by `--in-background` flag.
+Input: `$ARGUMENTS` — ticket ID, `mine`, spec file path, or empty. Optionally `--in-background`, `--project <slug>`.
 
 Flags:
-- `--in-background` — create a git worktree for isolated execution (background agent mode). Default: **off** (work in main repo).
+- `--in-background` — create a git worktree for isolated execution. Default: **off**.
+- `--project <slug>` — force Documents project slug when prefixes collide.
 
 This command runs **entirely in foreground**. Do not dispatch background agents.
 
-**Jira credentials** (optional but preferred for ticket keys):
-`~/.cursor/agent-env/.env` → `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN`, `ATLASSIAN_BASE_URL`.
-Never ask the user to paste tokens in chat; if missing, point them to that file.
+**Jira credentials**: `~/.cursor/agent-env/.env` → `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN`, `ATLASSIAN_BASE_URL`.
+Never ask the user to paste tokens in chat.
+
+**Artifact root** (canonical):
+
+```text
+%USERPROFILE%\Documents\copilot-workspace\<project-slug>\<TICKET>\
+  card.md  PRD.md  PROMPT.md  QUALITY.md  meta.json  evidence/
+```
+
+Resolve with `$WS ensure <TICKET> --repo <PROJECT_ROOT> [--project <slug>]`.  
+Legacy `<PROJECT_ROOT>/docs/tasks/<TICKET>/` is read only as a migration fallback if Documents files are missing.
 
 ---
 
 ## Step 0 — Detect input mode
 
-Determine the spec source from `$ARGUMENTS` and conversation context:
-
 | Condition | Input mode |
 |-----------|-----------|
-| `$ARGUMENTS` is empty AND conversation contains raw XML (starts with `<`, has `<rss`/`<item`) | `xml-paste` — use XML from conversation |
-| `$ARGUMENTS` looks like a ticket (e.g. `CTR-1200`) AND `specs/<TICKET>.md` exists | `ticket-file` — use local spec |
-| `$ARGUMENTS` looks like a ticket AND local spec is missing | `jira-fetch` — pull from Jira API, then save under `specs/` |
-| `$ARGUMENTS` is a file path | `spec-file` — use the file directly |
-| `$ARGUMENTS` is `mine` / `--mine` | `jira-mine` — list cards assigned to current user (stop after listing unless user picks one) |
-| None of the above | Ask: "Cole o XML do Jira, informe o ticket (ex. CTR-1200), ou diga `mine` para listar os seus cards." |
+| `$ARGUMENTS` looks like a ticket (e.g. `CTR-1200`) | `jira-fetch` — **default** |
+| `$ARGUMENTS` is `mine` / `--mine` | `jira-mine` |
+| `$ARGUMENTS` is a file path | `spec-file` |
+| `$ARGUMENTS` empty AND conversation has raw Jira XML (`<rss` / `<item`) | `xml-paste` — **legacy fallback only** |
+| `$ARGUMENTS` looks like a ticket AND user explicitly passed a local-only flag with existing `specs/<TICKET>.md` and no Jira creds | `ticket-file` — local markdown |
+| None of the above | Ask for ticket key, `mine`, or (legacy) XML |
+
+Prefer **Jira API** whenever a key is present. Do not require XML.
 
 ---
 
 ## Step 1 — Extract spec data
 
-### If input mode is `jira-mine`:
-1. Run: `$JIRA mine --max 30`
-2. Show a compact table: key, type, status, summary, url.
-3. Ask which key to interpret (or stop if the user only wanted the list).
-4. When they pick a key, continue as `jira-fetch`.
+### If `jira-mine`:
+1. `$JIRA mine --max 30` (and optionally `$JIRA sprint`).
+2. Show compact table; ask which key (or stop if list-only).
+3. Continue as `jira-fetch`.
 
-### If input mode is `jira-fetch`:
-1. Run: `$JIRA get <TICKET> --markdown --save <PROJECT_ROOT>/specs/<TICKET>.md`
-2. If JSON has `error` → **stop**, show error (and remind about `~/.cursor/agent-env/.env` on auth failures).
-3. Prefer `$SE` on the saved markdown/description when possible; if extractor expects XML and fails, use the markdown fields from `$JIRA get` output (`issue.summary`, `markdown`) as the planning source and continue.
-4. Continue to Step 2.
+### If `jira-fetch`:
+1. `$WS ensure <TICKET> --repo <PROJECT_ROOT>`
+2. `$JIRA get <TICKET> --markdown --save <ticketDir>/card.md`  
+   Also mirror to `<PROJECT_ROOT>/specs/<TICKET>.md` for `$TM` / repo convenience.
+3. On `error` → **stop** (remind agent-env on auth failures).
+4. Run `$SE` on saved markdown when possible; if extractor needs XML and fails, use `issue.summary` + `markdown` from `$JIRA get` and continue.
+5. Store `jiraUpdated` from `issue.updated` for meta later.
+6. Continue to Step 2.
 
-### If input mode is `xml-paste`:
-1. Save validated XML to `<PROJECT_ROOT>/specs/<TICKET>.md` (create `specs/` with `mkdir -p` if needed), using this template:
-   ```markdown
-   ---
-   task: <ticket>
-   type: <type>
-   description: Jira card importado via XML
-   ---
-
-   # Tarefa:
-
-   ```xml
-   <original XML here>
-   ```
-   ```
-2. Run: `$SE --xml "<xml_content>"`
+### If `xml-paste` (legacy):
+1. Save validated XML to `<PROJECT_ROOT>/specs/<TICKET>.md` and copy summary markdown into `<ticketDir>/card.md`.
+2. `$SE --xml "<xml_content>"`
 3. Continue to Step 2.
 
-### If input mode is `ticket-file` or `spec-file`:
-1. Read the XML block from the spec file (or full markdown if `source: jira-api`).
-2. If XML block exists: Run `$SE --xml "<xml_block>"`.
-3. Else if frontmatter has `source: jira-api`: treat markdown body as the spec source (no XML required).
-4. Continue to Step 2.
+### If `ticket-file` or `spec-file`:
+1. Read markdown/XML from the file.
+2. Prefer `$SE`; if `source: jira-api` frontmatter, treat body as spec without XML.
+3. Continue to Step 2.
 
 ### Validate extractor output:
-- `success: false` or error → **stop**, show error to user.
-- `key` is empty → **stop**: "Ticket key not found in XML."
-- `acceptance_criteria` is empty → warn: "CAs not extracted — check spec format." (but continue).
+- `success: false` → **stop**.
+- Empty `key` → **stop**.
+- Empty `acceptance_criteria` → warn, continue.
 
-Store extracted data: `key`, `type`, `summary`, `acceptance_criteria`, `test_cases`, `dod`.
+Store: `key`, `type`, `summary`, `acceptance_criteria`, `test_cases`, `dod`, `jiraUpdated` (if any).
 
 ---
 
 ## Step 2 — IDEMPOTENCY_GUARD ⛔
 
-Check if planning artifacts already exist for this ticket:
-
 ```bash
-ls <PROJECT_ROOT>/docs/tasks/<TICKET>/
+$WS resolve <TICKET> --repo <PROJECT_ROOT>
+# also: $WS is-fresh <TICKET> --jira-updated <jiraUpdated>   when jiraUpdated known
 ```
 
-If **any** of `PRD.md`, `PROMPT.md`, or `QUALITY.md` exists:
-1. Show which files exist with their last-modified dates.
-2. Ask:
-   > "Os artefatos de planejamento para `<TICKET>` já existem:
-   > - PRD.md (modificado: <date>)
-   > - PROMPT.md (modificado: <date>)
-   > - QUALITY.md (modificado: <date>)
-   >
-   > O que deseja fazer?
-   > (a) Regenerar tudo — sobrescrever os artefatos existentes
-   > (b) Regenerar somente [especifique qual]
-   > (c) Cancelar — manter os artefatos existentes"
-3. Wait for user choice before continuing.
-4. If user chooses (c) → stop.
+If **any** of Documents `PRD.md`, `PROMPT.md`, `QUALITY.md` exists:
+1. Show paths + last-modified; if `is-fresh` is true, say interpret is still valid vs Jira.
+2. Ask regenerate all / regenerate one / cancel.
+3. Wait for choice. Cancel → stop.
+
+If Documents missing but legacy `docs/tasks/<TICKET>/` exists, mention it and offer to regenerate into Documents.
 
 ---
 
 ## Step 3 — BRANCH_SETUP
 
-### Infer branch name (MUST match branch naming contract):
+### Infer branch name:
 
 | Spec type | Branch prefix | Example |
 |-----------|--------------|---------|
@@ -121,191 +111,101 @@ If **any** of `PRD.md`, `PROMPT.md`, or `QUALITY.md` exists:
 | `Bug` / `Hotfix` / `Fix` / `bug` | `bug/` | `bug/CTR-1200` |
 | `Chore` | `chore/` | `chore/CTR-1200` |
 
-### If `--in-background` flag is present → WORKTREE mode:
+### If `--in-background` → WORKTREE mode:
 
 ```bash
 WORKTREE_PATH=../<PROJECT_ROOT_BASENAME>-worktrees/<TICKET>
-ls $WORKTREE_PATH 2>/dev/null
 ```
 
-If worktree **already exists**:
-1. Show: git log --oneline -5 and `git status` inside the worktree.
-2. Ask:
-   > "A worktree `<WORKTREE_PATH>` já existe com as seguintes alterações: [show status].
-   > (a) Reuse — continuar usando esta worktree
-   > (b) Delete e recriar — apagar a worktree e criar nova a partir de `origin/develop`
-   > (c) Cancelar"
-3. If (a) → skip worktree creation. Redefine PROJECT_ROOT = WORKTREE_PATH.
-4. If (b) → `git worktree remove <WORKTREE_PATH> --force`, then create new (see below).
-5. If (c) → stop.
+Reuse / recreate / cancel as before. Copy `.env` and `public/config.json` when creating.  
+**Code** `PROJECT_ROOT` may become `WORKTREE_PATH`; **Documents paths stay on `$WS`** (never inside the worktree).
 
-If worktree **does not exist**:
-```bash
-cd <PROJECT_ROOT>
-git fetch origin
-git worktree add $WORKTREE_PATH -b <branch_name> origin/develop
-[ -f <PROJECT_ROOT>/.env ] && cp <PROJECT_ROOT>/.env $WORKTREE_PATH/.env
-[ -f <PROJECT_ROOT>/public/config.json ] && cp <PROJECT_ROOT>/public/config.json $WORKTREE_PATH/public/config.json
-```
+### If not `--in-background` → MAIN REPO mode:
 
-**From this point forward, `PROJECT_ROOT = WORKTREE_PATH`.**
-
-### If `--in-background` flag is NOT present → MAIN REPO mode (default):
-
-Only create the branch if it doesn't already exist:
-```bash
-cd <PROJECT_ROOT>
-git fetch origin
-git branch <branch_name> origin/develop 2>/dev/null || true
-```
-
-**`PROJECT_ROOT` stays as the main repo. `WORKTREE_PATH` is not set.**
+Create local branch from `origin/develop` if missing. Documents still via `$WS`.
 
 ---
 
 ## Step 4 — PM_AMBIGUITY_GATE ⛔ BLOCKING
 
-Analyze the extracted spec data for ambiguities. Do not skip. Do not proceed until count = 0.
-
-Check for:
-
-**A. Scope split (frontend vs backend)**
-- If spec contains CAs tagged as "Backend" or referencing server-side behavior:
-  > "Este spec inclui [N] CAs de backend. Estamos num projeto frontend. Devo:
-  > (a) Escopar apenas frontend
-  > (b) Incluir backend como sub-tarefa separada
-  > (c) Manter escopo fullstack"
-
-**B. Referenced UI elements that may not exist**
-- Scan `app/pages/`, `app/components/`, `app/stores/` for each UI element mentioned (tabs, screens, sections).
-- If not found:
-  > "O spec menciona '[elemento]' mas não encontrei no codebase. Devo:
-  > (a) Criar como parte desta task
-  > (b) Assumir que existe com outro nome (especifique)
-  > (c) Ignorar este elemento"
-
-**C. Missing API contract**
-- If spec references an API call without URL, method, or payload:
-  > "Não há contrato de API definido para [ação]. Você tem esse contrato, ou devo registrar como questão aberta no PRD?"
-
-**D. Unclear UX edge cases**
-- If spec has CAs with undefined behavior for edge scenarios (navigation, errors, empty states):
-  - List each and ask for the expected behavior.
-
-Show counter after each answer: `Ambiguidades restantes: N`
-
-Exception: if user says "pode assumir" → proceed but log all open assumptions in PRD under `## Open Assumptions`.
+Unchanged analysis (scope split, missing UI, API contract, UX edges). Show `Ambiguidades restantes: N`.  
+Exception: user says "pode assumir" → log under PRD `## Open Assumptions`.
 
 ---
 
 ## Step 5 — Write PRD
 
-1. Compute: `prd_path = <PROJECT_ROOT>/docs/tasks/<TICKET>/PRD.md`
-2. Run `mkdir -p <PROJECT_ROOT>/docs/tasks/<TICKET>/`
-3. If `se-product-manager-advisor` is available → dispatch with:
-   - full spec content, extracted spec data, resolved ambiguities
-   - `prd_output_path: <prd_path>`
-   - Instruction: "Operate in Task Interpreter Integration Mode. All ambiguities resolved — see context. Do NOT ask new questions. Write PRD directly to prd_output_path."
-   - Wait for completion. Verify file written.
-4. If agent not available or file not written after retry → write PRD directly from spec data + resolved context.
+1. `prd_path` from `$WS resolve` → `prd`
+2. Ensure layout: `$WS ensure <TICKET>`
+3. Prefer `se-product-manager-advisor` when available; else write PRD from spec + resolved ambiguities.
 
-PRD structure (minimum):
-```
-# PRD — <TICKET>: <summary>
-## Context / Problem
-## Scope (frontend | backend | fullstack)
-## Acceptance Criteria (normalized CAxx list)
-## UX Reference (if UX docs exist)
-## Open Assumptions (if any)
-## Out of Scope
-```
+Minimum PRD structure unchanged (Context, Scope, CAs, UX, Assumptions, Out of Scope).
 
 ---
 
 ## Step 6 — Write PROMPT
 
-1. Read PRD from `<PROJECT_ROOT>/docs/tasks/<TICKET>/PRD.md`.
-2. Write `<PROJECT_ROOT>/docs/tasks/<TICKET>/PROMPT.md`.
-
-PROMPT must start with:
-```
-> PRD reference: <PROJECT_ROOT>/docs/tasks/<TICKET>/PRD.md
-> Read this file before executing any step below.
-```
-
-PROMPT must include:
-- Task scope summary (1 paragraph)
-- Branch: `<branch_name>`
-- Worktree path: `<WORKTREE_PATH>` *(only if `--in-background` was used; omit otherwise)*
-- Impacted files / layers (with confidence: High / Medium / Low)
-- Implementation steps — one step per file/action (what / where / how)
-- Test strategy (unit / integration / E2E)
-- Mock plan (if API contract is missing)
-- Open questions (if any)
+1. Read Documents `PRD.md`.
+2. Write Documents `PROMPT.md`.
+3. Header must reference the **Documents** PRD path from `$WS`.
+4. Include branch, optional worktree path, impacted files, steps, tests, mocks, open questions.
 
 ---
 
 ## Step 7 — Write QUALITY
 
-1. If `qa-subagent` is available → dispatch with:
-   - `prd_path: <PROJECT_ROOT>/docs/tasks/<TICKET>/PRD.md`
-   - `quality_output_path: <PROJECT_ROOT>/docs/tasks/<TICKET>/QUALITY.md`
-   - Instruction: "Operate in Task Interpreter Integration Mode. Read the PRD. Write QUALITY.md."
-   - Wait for completion. Verify file written.
-2. If agent not available or file not written after retry → write QUALITY directly from PRD.
-
-QUALITY must include:
-- Normalized CAs (`CA01`…)
-- Normalized CTs grouped: positive / negative / error (`CT01`…)
-- Definition of Done checklist
-- Traceability matrix (CA → CT → files)
-- Quality gaps (CAs without clear CT)
+1. Prefer `qa-subagent` with Documents `prd` / `quality` paths; else write QUALITY from PRD.
+2. Include CAs, CTs, DoD, traceability, gaps.
 
 ---
 
-## Step 8 — Register in index
+## Step 8 — Register meta + index
 
-Run from `PROJECT_ROOT = WORKTREE_PATH`:
+```bash
+$WS write-meta <TICKET> --jira-updated <jiraUpdated> --repo <PROJECT_ROOT>
+```
+
+If `jiraUpdated` unknown (XML-only), still write meta with empty/omitted update and note source.
+
+Optional `$TM` registration (paths point to Documents artifacts):
 
 ```bash
 $TM add --spec <PROJECT_ROOT>/specs/<TICKET>.md --ticket <key> --type <type>
-$TM set-field <id> prompt <PROJECT_ROOT>/docs/tasks/<TICKET>/PROMPT.md
-$TM set-field <id> quality <PROJECT_ROOT>/docs/tasks/<TICKET>/QUALITY.md
-$TM set-field <id> prd <PROJECT_ROOT>/docs/tasks/<TICKET>/PRD.md
+$TM set-field <id> prompt <prompt_path>
+$TM set-field <id> quality <quality_path>
+$TM set-field <id> prd <prd_path>
 $TM set-field <id> branch <branch_name>
 $TM set-status <id> waiting
 $TM render-index
 ```
 
-> If spec is already indexed (duplicate check): skip `$TM add`, update fields only.
+> Duplicate check: skip `$TM add`, update fields only.
 
 ---
 
 ## Step 9 — Report
 
-Show final summary:
 ```
 ✅ /interpret concluído para <TICKET>
 
   Branch    <branch_name>
-  Worktree  <WORKTREE_PATH>  ← only shown when --in-background was used
-  PRD       docs/tasks/<TICKET>/PRD.md
-  PROMPT    docs/tasks/<TICKET>/PROMPT.md
-  QUALITY   docs/tasks/<TICKET>/QUALITY.md
+  Worktree  <WORKTREE_PATH>   ← only if --in-background
+  Workspace <ticketDir>
+  PRD       <prd_path>
+  PROMPT    <prompt_path>
+  QUALITY   <quality_path>
   Status    waiting
 
-  Ambiguidades resolvidas: <N>
-  Assumptions abertas: <N> (ver PRD § Open Assumptions)
-
-Próximo passo: /execute <TICKET>
+Próximo passo: /execute <TICKET>  ou  /dev-day start <TICKET>
 ```
 
 ---
 
 ## Safety rules
 
-- Never generate artifacts from memory or summaries — always read PRD file before writing PROMPT/QUALITY.
-- Never overwrite existing artifacts without confirming with user first (IDEMPOTENCY_GUARD).
-- Never create a worktree from a branch other than `origin/develop`.
-- Never proceed if `$SE` returns `success: false`.
+- Never generate artifacts from memory — read PRD before PROMPT/QUALITY.
+- Never overwrite without IDEMPOTENCY_GUARD.
+- Never create worktree from a branch other than `origin/develop`.
+- Never proceed if `$SE` returns `success: false` when XML mode required it.
 - Never infer missing API contracts silently — ask in AMBIGUITY_GATE.
+- Prefer Jira over XML; do not ask for XML when a key + credentials work.

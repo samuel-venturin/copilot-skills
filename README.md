@@ -9,13 +9,15 @@ This repository mirrors the skills normally kept in `~/.copilot/skills/`.
 | Skill | Description |
 |---|---|
 | `commit-changes` | Commit changes using atomic commits following a defined commit convention. Runs required checks, stages selectively, and creates well-formed commits. Never pushes automatically. |
+| `dev-day` | Orchestrates the daily desk — Jira sprint/mine, interpret into Documents/copilot-workspace, execute, fix-evidence, then qa-test-tutorial. |
 | `execute` | Execute a planned task end-to-end, using specific sub-skills for each step of the workflow (setup, tdd-red, implementation, code-review, qa-validation, approve, transition, validate). |
+| `fix-evidence` | Capture ordered success screenshots for a shipped ticket, save named PNGs under Documents/copilot-workspace, optionally attach them to Jira in order. Runs before qa-test-tutorial. |
 | `ideas-notes` | Consult and update persistent idea notes for automation/testing workflows. |
-| `interpret` | Interpret a Jira spec and produce planning artifacts — PRD, PROMPT, QUALITY. |
+| `interpret` | Interpret a Jira issue (API-first) and produce PRD, PROMPT, QUALITY under Documents/copilot-workspace. |
 | `local-stack` | Manage a local development stack (start/stop/restart/reset/logs) across infra, domain, tasks, bff, and frontend services. |
 | `playwright-cli` | Automate browser interactions for web testing, form filling, screenshots, and data extraction. |
 | `pr-maestro` | Single-entry PR automation using Python tools for tagging, PR creation, and template application. Supports an optional `--how-to-test-file` to inject a manual-test tutorial into the PR body. |
-| `qa-test-tutorial` | Writes a manual QA test tutorial for an already-implemented ticket and, by default, immediately executes it end-to-end with `playwright-cli` against the real dev environment, saving screenshot evidence straight to `Documents/<TICKET>-evidencias/`. |
+| `qa-test-tutorial` | Writes a manual QA test tutorial for an already-implemented ticket and optionally runs it with playwright-cli. Correction-evidence Jira upload is owned by `fix-evidence`. |
 | `refactor` | Single-entry refactoring automation with Python tools for code analysis, spec generation, and guided refactoring (dead code removal, simplification, naming, clean code, pattern conformance). |
 | `release-maestro` | Single-entry release automation for tag recommendation, tag creation, release notes generation, and release create/update. |
 | `tasks` | Manage a task queue — list, next, inspect, set dependencies, and transition status. |
@@ -61,7 +63,7 @@ npx github:samuel-venturin/copilot-skills cursor
 What it does automatically:
 
 - Copies skills into `~/.cursor/skills` (paths rewritten from `~/.claude` / `~/.copilot`)
-- Installs bundled scripts into `~/.cursor/scripts` (`task_manager.py`, `spec-extractor.tool.py`)
+- Installs bundled scripts into `~/.cursor/scripts` (`task_manager.py`, `spec-extractor.tool.py`, `jira.tool.py`, `workspace_paths.py`)
 - Writes `~/.cursor/rules/copilot-skills.mdc` (`alwaysApply: true`)
 - Detects personal Agent Stores under
   `%LOCALAPPDATA%\Cursor\AgentStores\cursor_agent_stores\t*-u*\files` (Windows) /

@@ -5,8 +5,9 @@ description: Execute a planned task end-to-end, using specific sub-skills for ea
 
 # /execute — Task Executor
 
-> `$TM` = `python3 ~/.claude/scripts/task_manager.py`
-> All commands run with `cwd = <PROJECT_ROOT>`.
+> `$TM` = `python ~/.cursor/scripts/task_manager.py`
+> `$WS` = `python ~/.cursor/scripts/workspace_paths.py`
+> Git/commands for code use `cwd = <PROJECT_ROOT>` (or worktree). Planning artifacts: Documents via `$WS`.
 
 Input: `$ARGUMENTS` — ticket ID, "next", "resume"/"continua", or empty (defaults to resume).
 
@@ -76,9 +77,9 @@ This phase:
   "ticket": "<TICKET>",
   "validation_passed": true,
   "resume_mode": "continue | restart",
-  "prd_path": "<PROJECT_ROOT>/docs/tasks/<TICKET>/PRD.md",
-  "prompt_path": "<PROJECT_ROOT>/docs/tasks/<TICKET>/PROMPT.md",
-  "quality_path": "<PROJECT_ROOT>/docs/tasks/<TICKET>/QUALITY.md"
+  "prd_path": "<from $WS resolve → prd>",
+  "prompt_path": "<from $WS resolve → prompt>",
+  "quality_path": "<from $WS resolve → quality>"
 }
 ```
 
@@ -236,7 +237,7 @@ This phase:
 - Re-runs validation tests after code review
 - Uses E2E targets from `\<WORKTREE_PATH\>/e2e/tests/\<dominio\>` only
 - If GREEN: allows final user approval
-- If FAIL: generates `docs/tasks/<TICKET>/QA_VALIDATION_REPORT.json` and stops for manual continuation
+- If FAIL: generates `<ticketDir>/QA_VALIDATION_REPORT.json` (Documents workspace via `$WS`) and stops for manual continuation
 
 **Expected output:**
 ```json
@@ -338,9 +339,10 @@ No new code or sub-skill rewrite is needed here — this only chains two existin
 - Never skip CODE_REVIEW — code quality validation is mandatory before user approval
 - Never skip QA_VALIDATION — tests must be re-run after code-review before user approval
 - Never use protocolo djalma — only automations under `<WORKTREE_PATH>/e2e/tests/<dominio>`
-- QA validation failures must generate `docs/tasks/<TICKET>/QA_VALIDATION_REPORT.json` and stop
+- QA validation failures must generate `<ticketDir>/QA_VALIDATION_REPORT.json` (Documents via `$WS`) and stop
 - CODE_REVIEW with REJECTED recommendation blocks approval completely
 - CODE_REVIEW with NEEDS_IMPROVEMENT allows user override (tracked for accountability)
-- Never delete `PRD.md`, `QUALITY.md`, or `docs/ux/` — only cleanup `PROMPT.md` if user confirms
+- Never delete Documents `PRD.md` / `QUALITY.md` — only cleanup `PROMPT.md` if user confirms
+- After GREEN + approval, suggest `/fix-evidence <TICKET>` before `/qa-test-tutorial`
 - If any phase fails or returns `passed: false` → STOP immediately and display the error
 - If Caio is unavailable (agent not found) → stop and inform user
