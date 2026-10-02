@@ -152,34 +152,52 @@ unless you pass `--all`.
 
 ## Updating
 
-Every install writes a small manifest (`.copilot-skills-manifest.json`) inside the
-target directory recording the installed version and skill list. `update.js` uses it
-to figure out what changed.
+Installers write a small manifest inside the target directory:
 
-**Option A — no clone needed:**
+| Installer | Manifest | Default target |
+|---|---|---|
+| `install.js` (Copilot) | `.copilot-skills-manifest.json` | `~/.copilot/skills` |
+| `install-cursor.js` (Cursor) | `.cursor-skills-manifest.json` | `~/.cursor/skills` |
+
+`update.js` reads that manifest, prints `CHANGELOG.md` entries newer than your install,
+and applies the update.
+
+**Cursor (recommended):**
+
+```powershell
+npx github:samuel-venturin/copilot-skills update --cursor
+npx github:samuel-venturin/copilot-skills update --cursor --check-only
+npx github:samuel-venturin/copilot-skills update --cursor --yes
+```
+
+Cursor updates re-run `install-cursor --force` so skills, `~/.cursor/scripts`, rules, and
+Agent Store stay in sync (including newly added skills).
+
+**Copilot CLI:**
 
 ```powershell
 npx github:samuel-venturin/copilot-skills update
 npx github:samuel-venturin/copilot-skills update --check-only
 ```
 
+If both installs exist, omit flags and `update.js` prefers Cursor when its manifest is present.
+
 **Option B — clone first, then run the script directly:**
 
 ```powershell
 git clone https://github.com/samuel-venturin/copilot-skills.git
 cd copilot-skills
-node update.js                 # check for updates, show what's new, and apply if you confirm
-node update.js --check-only    # just report whether an update is available
-node update.js --dry-run       # show what would be updated without changing anything
-node update.js --yes           # skip the confirmation prompt
+node update.js --cursor          # Cursor install
+node update.js                   # auto-detect / Copilot
+node update.js --check-only
+node update.js --dry-run
+node update.js --yes
 node update.js --target C:\custom\path
 node update.js --help
 ```
 
-`update.js` only touches the skills you already have installed (per the manifest) —
-it won't add skills you never installed, and it prints the relevant `CHANGELOG.md`
-entries (every version newer than the one you had) straight to the terminal before
-applying anything.
+For Copilot installs, `update.js` only refreshes skills already listed in the manifest.
+For Cursor installs it refreshes the full Cursor layout (skills + scripts + rules + stores).
 
 ## Daily update check (optional)
 
