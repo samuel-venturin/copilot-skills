@@ -5,8 +5,9 @@ description: Validate task dependencies, artifacts, and status. Steps 0-3 of exe
 
 # /execute-validate — Validation Phase
 
-> `$TM` = `python3 ~/.claude/scripts/task_manager.py`
-> All commands run with `cwd = <PROJECT_ROOT>`.
+> `$TM` = `python ~/.cursor/scripts/task_manager.py`
+> `$WS` = `python ~/.cursor/scripts/workspace_paths.py`
+> Git commands run with `cwd = <PROJECT_ROOT>`. Planning artifacts live under Documents (`$WS`).
 
 Input: `$ARGUMENTS` — ticket ID, "next", "resume"/"continua", or empty (defaults to resume).
 
@@ -45,13 +46,15 @@ If `depends_on` is set:
 
 ## Step 2 — ARTIFACT_GUARD ⛔
 
-Verify all three planning artifacts exist:
+Resolve Documents paths (canonical):
 
 ```bash
-ls <PROJECT_ROOT>/docs/tasks/<TICKET>/PRD.md
-ls <PROJECT_ROOT>/docs/tasks/<TICKET>/PROMPT.md
-ls <PROJECT_ROOT>/docs/tasks/<TICKET>/QUALITY.md
+$WS resolve <TICKET> --repo <PROJECT_ROOT>
 ```
+
+Verify all three planning artifacts exist at the resolved `prd` / `prompt` / `quality` paths.
+
+**Fallback:** if Documents files are missing, check legacy `<PROJECT_ROOT>/docs/tasks/<TICKET>/` and use those paths only if all three exist (prefer migrating via `/interpret` next time).
 
 If **any** is missing:
 > "⛔ Os artefatos de planejamento para `<TICKET>` estão incompletos:
@@ -59,7 +62,7 @@ If **any** is missing:
 > - PROMPT.md: <✅|❌>
 > - QUALITY.md: <✅|❌>
 >
-> Execute `/interpret <TICKET>` primeiro para gerar os artefatos ausentes."
+> Execute `/interpret <TICKET>` (ou `/dev-day interpret <TICKET>`) primeiro."
 
 **Stop.** Do not continue without all three files.
 
@@ -113,11 +116,13 @@ Return validation result:
   "ticket": "<TICKET>",
   "validation_passed": true,
   "resume_mode": "continue | restart",
-  "prd_path": "<PROJECT_ROOT>/docs/tasks/<TICKET>/PRD.md",
-  "prompt_path": "<PROJECT_ROOT>/docs/tasks/<TICKET>/PROMPT.md",
-  "quality_path": "<PROJECT_ROOT>/docs/tasks/<TICKET>/QUALITY.md"
+  "prd_path": "<Documents>/copilot-workspace/<project>/<TICKET>/PRD.md",
+  "prompt_path": "<Documents>/copilot-workspace/<project>/<TICKET>/PROMPT.md",
+  "quality_path": "<Documents>/copilot-workspace/<project>/<TICKET>/QUALITY.md"
 }
 ```
+
+Paths must be the absolute values returned by `$WS resolve` (or legacy fallback).
 
 **Proceed to next phase: `/execute-setup`**
 

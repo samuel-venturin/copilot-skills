@@ -4,6 +4,22 @@ All notable changes to this repository are documented here. Versions follow
 `package.json`'s `version` field. `update.js` reads this file to print a
 summary of what's new whenever you update.
 
+## [1.3.1]
+
+- Add Jira Cloud tooling under `scripts/` (`jira_client.py`, `jira.tool.py`) that reads
+  credentials from `~/.cursor/agent-env/.env` (never from chat).
+- Commands: `myself`, `mine`, `sprint`, `get`, `search`, `transitions`, `transition`,
+  `comment`, `attach` (ordered multipart uploads).
+- Add `workspace_paths.py` for `%USERPROFILE%/Documents/copilot-workspace` layout
+  (projects map, ticket dirs, meta freshness, evidence/).
+- New skills: `dev-day` (desk orchestrator) and `fix-evidence` (success PNGs + optional
+  Jira attach before `qa-test-tutorial`).
+- `interpret` is Jira-first; planning artifacts land in Documents/copilot-workspace
+  (XML paste is legacy fallback only).
+- `execute` / validate / qa-validation / approve read Documents paths via `$WS`
+  (legacy `docs/tasks/` remains fallback).
+- `qa-test-tutorial` no longer owns correction-evidence Jira upload (`fix-evidence` does).
+
 ## [1.3.0]
 
 - Add `install-cursor.js`: first-class Cursor installer, runnable via

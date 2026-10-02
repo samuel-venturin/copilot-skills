@@ -1,6 +1,6 @@
 {
   "name": "copilot-skills-install",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Installer for the copilot-skills collection — Copilot CLI (~/.copilot/skills) and Cursor Agent Skills (~/.cursor/skills).",
   "private": true,
   "license": "UNLICENSED",
