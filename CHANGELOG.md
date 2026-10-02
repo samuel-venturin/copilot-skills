@@ -19,6 +19,9 @@ summary of what's new whenever you update.
 - `execute` / validate / qa-validation / approve read Documents paths via `$WS`
   (legacy `docs/tasks/` remains fallback).
 - `qa-test-tutorial` no longer owns correction-evidence Jira upload (`fix-evidence` does).
+- Fix Cursor updates: `update.js` now reads `.cursor-skills-manifest.json`, auto-detects
+  `~/.cursor/skills`, supports `--cursor`, and applies via `install-cursor --force`
+  (skills + scripts + rules + Agent Store).
 
 ## [1.3.0]
 

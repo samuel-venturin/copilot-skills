@@ -2,27 +2,23 @@
 /**
  * copilot-skills-update
  *
- * Updates the skills previously installed by install.js to the latest
- * version available in this repository, and prints a summary of what's new
- * (read from CHANGELOG.md, filtered to versions newer than the one recorded
- * in the target's manifest).
+ * Updates skills previously installed by install.js (Copilot) or
+ * install-cursor.js (Cursor) to the latest version in this repository, and
+ * prints a changelog summary of what's new.
  *
  * How it works:
- *   1. Clones (or re-fetches) the repository into a temp working copy.
- *   2. Compares its package.json version against the manifest already
- *      recorded at the target directory (written by install.js).
- *   3. If a newer version is found, re-installs every skill already present
- *      at the target (same set, so nothing new is added and nothing you
- *      removed comes back) using the same backup-on-conflict behavior as
- *      install.js, then prints the changelog entries between the two
- *      versions.
+ *   1. Resolves the install target (explicit --target / --cursor, or auto-detect).
+ *   2. Reads the install manifest (.copilot-skills-manifest.json or
+ *      .cursor-skills-manifest.json).
+ *   3. Clones the latest repo into a temp working copy and compares versions.
+ *   4. Copilot target: refreshes only the skills listed in the manifest.
+ *      Cursor target: re-runs install-cursor.js --force so skills, scripts,
+ *      rules, and Agent Store stay in sync (and new skills are picked up).
  *
  * Usage:
- *   node update.js [--target <dir>] [--yes] [--dry-run] [--check-only]
+ *   node update.js [--target <dir>] [--cursor] [--yes] [--dry-run] [--check-only]
  *
- * Zero external dependencies beyond `git` on PATH (needed to fetch the
- * latest version) — everything else is Node.js builtins, so this also runs
- * via `npx github:<owner>/copilot-skills update`-style invocations.
+ * Zero external dependencies beyond `git` on PATH.
  */
 
 "use strict";
@@ -30,16 +26,18 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { execSync } = require("child_process");
+const { execSync, spawnSync } = require("child_process");
 
 const REPO_ROOT = __dirname;
 const REPO_SLUG = "samuel-venturin/copilot-skills";
 const REPO_URL = `https://github.com/${REPO_SLUG}.git`;
-const MANIFEST_FILE = ".copilot-skills-manifest.json";
+const COPILOT_MANIFEST = ".copilot-skills-manifest.json";
+const CURSOR_MANIFEST = ".cursor-skills-manifest.json";
 
 function parseArgs(argv) {
   const opts = {
-    target: process.env.COPILOT_SKILLS_DIR || path.join(os.homedir(), ".copilot", "skills"),
+    target: null,
+    cursor: false,
     yes: false,
     dryRun: false,
     checkOnly: false,
@@ -48,6 +46,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--target") opts.target = argv[++i];
+    else if (a === "--cursor") opts.cursor = true;
     else if (a === "--yes" || a === "-y") opts.yes = true;
     else if (a === "--dry-run") opts.dryRun = true;
     else if (a === "--check-only") opts.checkOnly = true;
@@ -59,23 +58,72 @@ function parseArgs(argv) {
 function printHelp() {
   console.log(`copilot-skills-update
 
-Updates the skills already installed at the target directory to the latest
-version in ${REPO_SLUG}, and prints a summary of what changed since the
-version you had installed.
+Updates skills installed for GitHub Copilot CLI and/or Cursor to the latest
+version in ${REPO_SLUG}, and prints a summary of what changed.
 
 Options:
-  --target <dir>   Directory to update (default: ~/.copilot/skills, or
-                   $COPILOT_SKILLS_DIR if set)
+  --cursor          Update the Cursor install (~/.cursor/skills). Re-runs
+                    install-cursor --force so scripts/rules/Agent Store sync too.
+  --target <dir>    Directory to update (must contain a skills manifest)
   --check-only      Only report whether an update is available, don't apply it
   --dry-run         Show what would be updated without changing anything
   --yes, -y         Skip the confirmation prompt
   -h, --help        Show this help
+
+Defaults:
+  If --target / --cursor are omitted, auto-detects:
+    1) ~/.cursor/skills when .cursor-skills-manifest.json exists
+    2) else ~/.copilot/skills (or $COPILOT_SKILLS_DIR)
 `);
 }
 
-function readManifest(target) {
+function hasManifest(dir, fileName) {
+  return fs.existsSync(path.join(dir, fileName));
+}
+
+function resolveInstall(opts) {
+  const cursorDefault = path.join(os.homedir(), ".cursor", "skills");
+  const copilotDefault =
+    process.env.COPILOT_SKILLS_DIR || path.join(os.homedir(), ".copilot", "skills");
+
+  if (opts.target) {
+    const target = path.resolve(opts.target);
+    if (hasManifest(target, CURSOR_MANIFEST)) {
+      return { target, kind: "cursor", manifestFile: CURSOR_MANIFEST };
+    }
+    if (hasManifest(target, COPILOT_MANIFEST)) {
+      return { target, kind: "copilot", manifestFile: COPILOT_MANIFEST };
+    }
+    return { target, kind: opts.cursor ? "cursor" : "copilot", manifestFile: null };
+  }
+
+  if (opts.cursor) {
+    return {
+      target: cursorDefault,
+      kind: "cursor",
+      manifestFile: hasManifest(cursorDefault, CURSOR_MANIFEST) ? CURSOR_MANIFEST : null,
+    };
+  }
+
+  // Auto-detect: prefer Cursor when its manifest is present.
+  if (hasManifest(cursorDefault, CURSOR_MANIFEST)) {
+    return { target: cursorDefault, kind: "cursor", manifestFile: CURSOR_MANIFEST };
+  }
+  if (hasManifest(copilotDefault, COPILOT_MANIFEST)) {
+    return { target: copilotDefault, kind: "copilot", manifestFile: COPILOT_MANIFEST };
+  }
+
+  // Fallbacks when nothing is installed yet (clearer errors later).
+  if (fs.existsSync(cursorDefault)) {
+    return { target: cursorDefault, kind: "cursor", manifestFile: null };
+  }
+  return { target: copilotDefault, kind: "copilot", manifestFile: null };
+}
+
+function readManifest(target, manifestFile) {
+  if (!manifestFile) return null;
   try {
-    return JSON.parse(fs.readFileSync(path.join(target, MANIFEST_FILE), "utf8"));
+    return JSON.parse(fs.readFileSync(path.join(target, manifestFile), "utf8"));
   } catch {
     return null;
   }
@@ -85,7 +133,6 @@ function readRemoteVersion(repoRoot) {
   return JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")).version;
 }
 
-// Simple semver-ish comparison (major.minor.patch, numeric parts only).
 function compareVersions(a, b) {
   const pa = String(a).split(".").map((n) => parseInt(n, 10) || 0);
   const pb = String(b).split(".").map((n) => parseInt(n, 10) || 0);
@@ -98,17 +145,16 @@ function compareVersions(a, b) {
 
 function fetchLatest(workDir) {
   fs.rmSync(workDir, { recursive: true, force: true });
-  execSync(`git clone --depth 1 --quiet ${REPO_URL} "${workDir}"`, { stdio: ["ignore", "ignore", "inherit"] });
+  execSync(`git clone --depth 1 --quiet ${REPO_URL} "${workDir}"`, {
+    stdio: ["ignore", "ignore", "inherit"],
+  });
   return workDir;
 }
 
-// Extracts the changelog sections for every version strictly newer than
-// `sinceVersion` (or everything if sinceVersion is null), in file order
-// (CHANGELOG.md is expected newest-first).
 function changelogSince(changelogPath, sinceVersion) {
   if (!fs.existsSync(changelogPath)) return [];
   const text = fs.readFileSync(changelogPath, "utf8");
-  const sections = text.split(/^## \[/m).slice(1); // drop the "# Changelog" preamble
+  const sections = text.split(/^## \[/m).slice(1);
   const entries = [];
   for (const section of sections) {
     const versionMatch = section.match(/^([^\]]+)\]/);
@@ -161,7 +207,62 @@ function copyRecursiveSync(src, dest, ignore) {
   }
 }
 
-const COPY_IGNORE = new Set([".git", "node_modules", "__pycache__", ".venv", ".testid-cache", "state.json", "resolved_env.json"]);
+const COPY_IGNORE = new Set([
+  ".git",
+  "node_modules",
+  "__pycache__",
+  ".venv",
+  ".testid-cache",
+  "state.json",
+  "resolved_env.json",
+]);
+
+function applyCursorUpdate(workDir) {
+  const installer = path.join(workDir, "install-cursor.js");
+  if (!fs.existsSync(installer)) {
+    throw new Error(`install-cursor.js missing in fetched repo (${installer})`);
+  }
+  const result = spawnSync(process.execPath, [installer, "--force", "--yes"], {
+    stdio: "inherit",
+    cwd: workDir,
+  });
+  if (result.status !== 0) {
+    throw new Error(`install-cursor failed with exit code ${result.status}`);
+  }
+}
+
+function applyCopilotUpdate(workDir, target, installedSkills, latestVersion) {
+  const updated = [];
+  const failed = [];
+  for (const skill of installedSkills) {
+    const src = path.join(workDir, skill);
+    const dest = path.join(target, skill);
+    if (!fs.existsSync(src)) {
+      console.log(
+        `  ○ ${skill.padEnd(22)} no longer exists in the repo — left untouched (use uninstall.js to remove it)`
+      );
+      continue;
+    }
+    try {
+      fs.rmSync(dest, { recursive: true, force: true });
+      copyRecursiveSync(src, dest, COPY_IGNORE);
+      console.log(`  ✓ ${skill.padEnd(22)} updated`);
+      updated.push(skill);
+    } catch (err) {
+      console.error(`  ✗ ${skill.padEnd(22)} FAILED: ${err.message}`);
+      failed.push(skill);
+    }
+  }
+
+  const manifestOut = {
+    version: latestVersion,
+    installedAt: new Date().toISOString(),
+    repo: REPO_SLUG,
+    skills: installedSkills.filter((s) => fs.existsSync(path.join(target, s, "SKILL.md"))).sort(),
+  };
+  fs.writeFileSync(path.join(target, COPILOT_MANIFEST), JSON.stringify(manifestOut, null, 2) + "\n");
+  return { updated, failed };
+}
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
@@ -170,25 +271,34 @@ async function main() {
     return 0;
   }
 
-  if (!fs.existsSync(opts.target)) {
-    console.error(`✗ Nothing installed yet at ${opts.target} — run the installer first.`);
+  const install = resolveInstall(opts);
+
+  if (!fs.existsSync(install.target)) {
+    console.error(
+      `✗ Nothing installed yet at ${install.target} — run the installer first ` +
+        `(npx github:${REPO_SLUG}${install.kind === "cursor" ? " install-cursor" : ""}).`
+    );
     return 1;
   }
 
-  const manifest = readManifest(opts.target);
+  const manifest = readManifest(install.target, install.manifestFile);
   const currentVersion = manifest ? manifest.version : null;
   const installedSkills = manifest && Array.isArray(manifest.skills) ? manifest.skills : null;
 
   if (!installedSkills || !installedSkills.length) {
+    const expected =
+      install.kind === "cursor" ? CURSOR_MANIFEST : COPILOT_MANIFEST;
     console.error(
-      `✗ No install manifest found at ${opts.target}. This target wasn't installed with a version of ` +
-        `install.js that records one — reinstall first (npx github:${REPO_SLUG}) so update.js has something to compare against.`
+      `✗ No install manifest (${expected}) found at ${install.target}. ` +
+        `Reinstall first: npx github:${REPO_SLUG}` +
+        `${install.kind === "cursor" ? " install-cursor" : ""}`
     );
     return 1;
   }
 
   console.log(`\ncopilot-skills-update`);
-  console.log(`  Target: ${opts.target}`);
+  console.log(`  Kind: ${install.kind}`);
+  console.log(`  Target: ${install.target}`);
   console.log(`  Installed version: ${currentVersion || "(unknown)"}\n`);
 
   console.log("  Checking for updates...");
@@ -198,7 +308,9 @@ async function main() {
     fetchLatest(workDir);
     latestVersion = readRemoteVersion(workDir);
   } catch (err) {
-    console.error(`✗ Could not fetch the latest version (is 'git' installed and is there network access?): ${err.message}`);
+    console.error(
+      `✗ Could not fetch the latest version (is 'git' installed and is there network access?): ${err.message}`
+    );
     return 1;
   }
 
@@ -217,13 +329,21 @@ async function main() {
   printChangelog(changelogEntries);
 
   if (opts.checkOnly) {
-    console.log(`  Run 'node update.js' (without --check-only) to apply this update.\n`);
+    console.log(
+      install.kind === "cursor"
+        ? `  Run 'npx github:${REPO_SLUG} update --cursor' (or --yes) to apply this update.\n`
+        : `  Run 'npx github:${REPO_SLUG} update' (without --check-only) to apply this update.\n`
+    );
     fs.rmSync(workDir, { recursive: true, force: true });
     return 0;
   }
 
   if (opts.dryRun) {
-    console.log(`  (dry-run) Would update: ${installedSkills.join(", ")}\n`);
+    if (install.kind === "cursor") {
+      console.log(`  (dry-run) Would re-run install-cursor --force (skills + scripts + rules + Agent Store)\n`);
+    } else {
+      console.log(`  (dry-run) Would update: ${installedSkills.join(", ")}\n`);
+    }
     fs.rmSync(workDir, { recursive: true, force: true });
     return 0;
   }
@@ -238,47 +358,43 @@ async function main() {
     return 0;
   }
 
-  const updated = [];
-  const failed = [];
-  for (const skill of installedSkills) {
-    const src = path.join(workDir, skill);
-    const dest = path.join(opts.target, skill);
-    if (!fs.existsSync(src)) {
-      console.log(`  ○ ${skill.padEnd(22)} no longer exists in the repo — left untouched (use uninstall.js to remove it)`);
-      continue;
+  try {
+    if (install.kind === "cursor") {
+      console.log("  Applying Cursor update via install-cursor --force...\n");
+      applyCursorUpdate(workDir);
+      fs.rmSync(workDir, { recursive: true, force: true });
+      console.log(`\n✓ Done. Cursor install refreshed to v${latestVersion}.\n`);
+      return 0;
     }
+
+    const { updated, failed } = applyCopilotUpdate(
+      workDir,
+      install.target,
+      installedSkills,
+      latestVersion
+    );
+    fs.rmSync(workDir, { recursive: true, force: true });
+
+    console.log(`\n  ${"─".repeat(52)}`);
+    console.log(`  Updated: ${updated.length}  |  Failed: ${failed.length}`);
+    console.log(`  ${"─".repeat(52)}\n`);
+
+    if (failed.length) {
+      console.error("✗ Some skills failed to update. See errors above.");
+      return 1;
+    }
+
+    console.log(`✓ Done. Now on v${latestVersion}.\n`);
+    return 0;
+  } catch (err) {
     try {
-      fs.rmSync(dest, { recursive: true, force: true });
-      copyRecursiveSync(src, dest, COPY_IGNORE);
-      console.log(`  ✓ ${skill.padEnd(22)} updated`);
-      updated.push(skill);
-    } catch (err) {
-      console.error(`  ✗ ${skill.padEnd(22)} FAILED: ${err.message}`);
-      failed.push(skill);
+      fs.rmSync(workDir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
     }
-  }
-
-  const manifestOut = {
-    version: latestVersion,
-    installedAt: new Date().toISOString(),
-    repo: REPO_SLUG,
-    skills: installedSkills.filter((s) => fs.existsSync(path.join(opts.target, s, "SKILL.md"))).sort(),
-  };
-  fs.writeFileSync(path.join(opts.target, MANIFEST_FILE), JSON.stringify(manifestOut, null, 2) + "\n");
-
-  fs.rmSync(workDir, { recursive: true, force: true });
-
-  console.log(`\n  ${"─".repeat(52)}`);
-  console.log(`  Updated: ${updated.length}  |  Failed: ${failed.length}`);
-  console.log(`  ${"─".repeat(52)}\n`);
-
-  if (failed.length) {
-    console.error("✗ Some skills failed to update. See errors above.");
+    console.error(`✗ Update failed: ${err.message}`);
     return 1;
   }
-
-  console.log(`✓ Done. Now on v${latestVersion}.\n`);
-  return 0;
 }
 
 main()
